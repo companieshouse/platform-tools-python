@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ebs_recover_and_replace"
+version = "1.0.0"
+authors = [
+  { name="Wayne Jenkins", email="wjenkins1@companieshouse.gov.uk" },
+]
+description = "Manage the recovery of EBS volumes from existing snapshots"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+  'botocore >= 1.27.86',
+  'boto3 >= 1.24.86',
+]
+
+[project.scripts]
+ebs-recover-and-replace="ebs_recover_and_replace:main"
