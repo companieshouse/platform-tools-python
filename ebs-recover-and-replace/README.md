@@ -4,9 +4,9 @@ Helps manage the restoration of EBS volumes from snapshots and attaching the res
 
 ## Building this project
 
-This project uses the `setuptools` build system available via `pip install build`.
+This project uses the `setuptools` build system available via `pip install build`. A build can be triggered with `python3 -m build`.
 
-A basic Makefile is provided and provides two possible actions.
+A basic Makefile is provided and provides the following actions
 * `make build`: Builds the project
 * `make clean`: Clean any post-build artefacts
 
@@ -21,8 +21,8 @@ The Python build output will be placed in a `./dist` directory and will comprise
 ## Command Line Options
 
 ```
-usage: ebs-recover-and-replace.py [-h] [--searchtags [searchtags]] [--profile [profile]] [--region [region]]
-                                  [--switchvols | --no-switchvols] [--saveplan [saveplan]] [--loadplan [loadplan]]
+usage: ebs-recover-and-replace [-h] [--searchtags [searchtags]] [--profile [profile]] [--region [region]]
+                               [--switchvols | --no-switchvols] [--saveplan [saveplan]] [--loadplan [loadplan]]
 
 Program arguments and options
 
@@ -54,12 +54,12 @@ Using the `saveplan` option, a JSON-formatted file can be written to disk instea
 
 Example:
 ```
-ebs-recovery-and-replace.py --searchtags Environment=MyEnv,Service=MyService --saveplan my_saved_plan.out
+ebs-recovery-and-replace --searchtags Environment=MyEnv,Service=MyService --saveplan my_saved_plan.out
 ```
 
 A previously saved plan can be loaded using the `loadplan` option. This will read in a previously saved plan file and, after some validation of the plan to ensure consistency, will load the data and present the user with a confirmation screen similar to the one presented during normal operation.
 
 Example:
 ```
-ebs-recovery-and-replace.py --loadplan my_saved_plan.out
+ebs-recovery-and-replace --loadplan my_saved_plan.out
 ```
