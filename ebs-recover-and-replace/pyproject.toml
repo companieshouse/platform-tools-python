@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ebs_recover_and_replace"
-version = "1.0.0"
+version = "1.0.1"
 authors = [
   { name="Wayne Jenkins", email="wjenkins1@companieshouse.gov.uk" },
 ]
@@ -17,8 +17,8 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-  'botocore >= 1.27.86',
-  'boto3 >= 1.24.86',
+  'botocore == 1.27.86',
+  'boto3 == 1.24.86',
 ]
 
 [project.scripts]
