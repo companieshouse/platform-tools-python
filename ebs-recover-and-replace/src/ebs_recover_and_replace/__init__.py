@@ -934,6 +934,248 @@ def load_plan(load_file):
     return input_dict["plan"]["searchtags_dict"], input_dict["plan"]["instance_dict"]
 
 
+def verify_instance(ec2_client, plan_instance_id, plan_instance_metadata):
+    """
+    Verifies that the provided Instance exists in AWS
+    and that the provided instance data matches
+    """
+
+    print("Checking Instance ID: {}... ".format(plan_instance_id),
+        end="",
+        flush=True,
+    )
+
+    try:
+        response = ec2_client.describe_instances(
+            InstanceIds=[plan_instance_id]
+        )
+
+    except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
+        sys.exit(ssotokenerr)
+
+    except botocore.exceptions.ProfileNotFound as profileerr:
+        sys.exit(profileerr)
+
+    if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
+        for reservation in response["Reservations"]:
+            if len(reservation["Instances"]) == 1:
+                print("FOUND")
+                for instance in reservation["Instances"]:
+                    print("    Verifying Instance Name... ",
+                        end="",
+                        flush=True,
+                    )
+                    instance_name = ""
+                    for tags in instance["Tags"]:
+                        if tags["Key"] == "Name":
+                            instance_name = tags["Value"]
+
+                    if plan_instance_metadata["Name"] == instance_name:
+                        print("OK")
+                    else:
+                        print("FAILED")
+                        sys.exit("Error: Instance name does not match\nPlan: {}, Actual: {}".format(
+                            plan_instance_metadata["Name"],
+                            instance_name
+                        ))
+
+                    print("    Verifying Instance IP Address... ",
+                        end="",
+                        flush=True,
+                    )
+                    if plan_instance_metadata["IPAddress"] == instance["PrivateIpAddress"]:
+                        print("OK")
+                    else:
+                        print("FAILED")
+                        sys.exit("Error: Instance IP Address does not match\nPlan: {}, Actual: {}".format(
+                            plan_instance_metadata["IPAddress"],
+                            instance["PrivateIpAddress"]
+                        ))
+
+            else:
+                print("FAILED")
+                sys.exit("Error: The instance with Instance ID {} could not be found".format(plan_instance_id))
+
+    else:
+        print("FAILED")
+        print(
+            "Received {} error from AWS".format(
+                response["ResponseMetadata"]["HTTPStatusCode"]
+            )
+        )
+
+
+def verify_volume(ec2_client, plan_volume_id, plan_volume_metadata):
+    """
+    Verifies that the provided Volume exists in AWS
+    and that the provided volume data matches
+    """
+
+    print("Checking Volume ID: {}... ".format(plan_volume_id),
+        end="",
+        flush=True,
+    )
+
+    try:
+        response = ec2_client.describe_volumes(
+            VolumeIds=[plan_volume_id]
+        )
+
+    except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
+        sys.exit(ssotokenerr)
+
+    except botocore.exceptions.ProfileNotFound as profileerr:
+        sys.exit(profileerr)
+
+    if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
+        if len(response["Volumes"]) == 1:
+            print("FOUND")
+            for volume in response["Volumes"]:
+                for key in plan_volume_metadata.keys():
+                    print("    Verifying {}... ".format(key),
+                        end="",
+                        flush=True,
+                    )
+                    if key == "DeviceName":
+                        if plan_volume_metadata[key] == volume["Attachments"][0]["Device"]:
+                            print("OK")
+                        else:
+                            print("FAILED")
+                            sys.exit("Error: {} does not match\nPlan: {}, Actual: {}".format(
+                                key,
+                                plan_volume_metadata[key],
+                                volume["Attachments"][0]["Device"],
+                            ))
+                    elif plan_volume_metadata[key] == volume[key]:
+                        print("OK")
+                    else:
+                        print("FAILED")
+                        sys.exit("Error: {} does not match\nPlan: {}, Actual: {}".format(
+                            key,
+                            plan_volume_metadata[key],
+                            volume[key],
+                        ))
+
+        else:
+            print("FAILED")
+            sys.exit("Error: The volume with Volume ID {} could not be found".format(plan_volume_id))
+
+    else:
+        print("FAILED")
+        print(
+            "Received {} error from AWS".format(
+                response["ResponseMetadata"]["HTTPStatusCode"]
+            )
+        )
+
+
+def verify_snapshot(ec2_client, plan_snapshot_id, plan_snapshot_metadata):
+    """
+    Verifies that the provided Snapshot exists in AWS
+    and that the provided snapshot data matches
+    """
+
+    print("Checking Snapshot ID: {}... ".format(plan_snapshot_id),
+        end="",
+        flush=True,
+    )
+
+    try:
+        response = ec2_client.describe_snapshots(
+            SnapshotIds=[plan_snapshot_id]
+        )
+
+    except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
+        sys.exit(ssotokenerr)
+
+    except botocore.exceptions.ProfileNotFound as profileerr:
+        sys.exit(profileerr)
+
+    if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
+        if len(response["Snapshots"]) == 1:
+            print("FOUND")
+            for snapshot in response["Snapshots"]:
+                for key in plan_snapshot_metadata.keys():
+                    print("    Verifying {}... ".format(key),
+                        end="",
+                        flush=True,
+                    )
+                    if key == "StartTime":
+                        snapshot_starttime = "{}".format(snapshot["StartTime"])
+                        if plan_snapshot_metadata[key] == snapshot_starttime:
+                            print("OK")
+                        else:
+                            print("FAILED")
+                            sys.exit("Error: {} does not match\nPlan: {}, Actual: {}".format(
+                                key,
+                                plan_snapshot_metadata[key],
+                                snapshot_starttime,
+                            ))
+
+                    elif plan_snapshot_metadata[key] == snapshot[key]:
+                        print("OK")
+                    else:
+                        print("FAILED")
+                        sys.exit("Error: {} does not match\nPlan: {}, Actual: {}".format(
+                            key,
+                            plan_snapshot_metadata[key],
+                            snapshot[key],
+                        ))
+
+        else:
+            print("FAILED")
+            sys.exit("Error: The snapshot with Snapshot ID {} could not be found".format(plan_snapshot_id))
+
+    else:
+        print("FAILED")
+        print(
+            "Received {} error from AWS".format(
+                response["ResponseMetadata"]["HTTPStatusCode"]
+            )
+        )
+
+
+def revalidate_loaded_plan(ec2_client, instance_dict):
+    """
+    Re-validates the provided instance_dict to ensure the supplied
+    AWS resource IDs are valid and still exist
+    """
+    print()
+    print("Re-validating resource IDs...")
+
+    for instance_id in instance_dict:
+        instance_metadata = {
+            "Name": instance_dict[instance_id]["Name"],
+            "IPAddress": instance_dict[instance_id]["IPAddress"]
+        }
+        verify_instance(ec2_client, instance_id, instance_metadata)
+        print()
+
+        for block_dev in instance_dict[instance_id]["BlockDevs"]:
+            volume_id = block_dev["VolumeId"]
+            volume_metadata = {
+                "DeviceName": block_dev["DeviceName"],
+                "AvailabilityZone": block_dev["AvailabilityZone"],
+                "Encrypted": block_dev["Encrypted"],
+                "Size": block_dev["Size"],
+                "VolumeType": block_dev["VolumeType"]
+            }
+
+            if block_dev["Encrypted"]:
+                volume_metadata.update({"KmsKeyId": block_dev["KmsKeyId"]})
+
+            verify_volume(ec2_client, volume_id, volume_metadata)
+            print()
+
+            snapshot_id = block_dev["SnapshotData"][0]["SnapshotId"]
+            snapshot_metadata = {
+                "StartTime": block_dev["SnapshotData"][0]["StartTime"]
+            }
+
+            verify_snapshot(ec2_client, snapshot_id, snapshot_metadata)
+            print()
+
+
 def main():
     """
     Setup ArgumentParser
@@ -1018,6 +1260,8 @@ def main():
 
         if args.loadplan is not None:
             searchtags_dict, instance_dict = load_plan(args.loadplan)
+            separator()
+            revalidate_loaded_plan(ec2_client, instance_dict)
             separator()
         else:
             instance_dict = query_ec2_instances(ec2_client, searchtags_dict)
