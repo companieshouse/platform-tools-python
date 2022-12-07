@@ -27,6 +27,20 @@ def process_searchtags(searchtags):
     return clean_dict
 
 
+def validate_response(response):
+    if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
+        print("OK")
+        return True
+    else:
+        print("FAILED")
+        sys.exit(
+            "Received {} error from AWS".format(
+                response["ResponseMetadata"]["HTTPStatusCode"]
+            )
+        )
+        return False
+
+
 def create_ec2_client(awsprofile, awsregion):
     """
     Connects to the AWS API and returns an EC2 client object
@@ -537,8 +551,7 @@ def restore_ebs_volume(
             TagSpecifications=[{"ResourceType": "volume", "Tags": tags_list}],
         )
 
-    if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
-        print("OK")
+    if validate_response(response):
         new_volume_id = response["VolumeId"]
         print(
             "Waiting for {} to become ready... ".format(new_volume_id),
@@ -569,14 +582,6 @@ def restore_ebs_volume(
             else:
                 print(waiterr.message)
 
-    else:
-        print("FAILED")
-        print(
-            "Received {} error from AWS".format(
-                response["ResponseMetadata"]["HTTPStatusCode"]
-            )
-        )
-
 
 def toggle_ec2_state(ec2_client, instance_id, state=1, wait_delay=15, wait_attempts=40):
     """
@@ -592,8 +597,7 @@ def toggle_ec2_state(ec2_client, instance_id, state=1, wait_delay=15, wait_attem
         )
         response = ec2_client.start_instances(InstanceIds=[instance_id])
 
-        if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
-            print("OK")
+        if validate_response(response):
             print(
                 "Waiting for instance {} to start... ".format(instance_id),
                 end="",
@@ -619,22 +623,13 @@ def toggle_ec2_state(ec2_client, instance_id, state=1, wait_delay=15, wait_attem
                 else:
                     print(waiterr.message)
 
-        else:
-            print("FAILED")
-            print(
-                "Received {} error from AWS".format(
-                    response["ResponseMetadata"]["HTTPStatusCode"]
-                )
-            )
-
     else:
         print(
             "Triggering stop of instance {}... ".format(instance_id), end="", flush=True
         )
         response = ec2_client.stop_instances(InstanceIds=[instance_id])
 
-        if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
-            print("OK")
+        if validate_response(response):
             print(
                 "Waiting for instance {} to stop... ".format(instance_id),
                 end="",
@@ -660,14 +655,6 @@ def toggle_ec2_state(ec2_client, instance_id, state=1, wait_delay=15, wait_attem
                 else:
                     print(waiterr.message)
 
-        else:
-            print("FAILED")
-            print(
-                "Received {} error from AWS".format(
-                    response["ResponseMetadata"]["HTTPStatusCode"]
-                )
-            )
-
 
 def detach_ebs_volume(
     ec2_client, instance_id, volume_id, device_name, wait_delay=15, wait_attempts=40
@@ -686,8 +673,7 @@ def detach_ebs_volume(
         Device=device_name, InstanceId=instance_id, VolumeId=volume_id
     )
 
-    if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
-        print("OK")
+    if validate_response(response):
         print(
             "Waiting for volume {} to detach... ".format(volume_id), end="", flush=True
         )
@@ -715,12 +701,6 @@ def detach_ebs_volume(
         return True
 
     else:
-        print("FAILED")
-        print(
-            "Received {} error from AWS".format(
-                response["ResponseMetadata"]["HTTPStatusCode"]
-            )
-        )
         return False
 
 
@@ -741,8 +721,7 @@ def attach_ebs_volume(
         Device=device_name, InstanceId=instance_id, VolumeId=new_volume_id
     )
 
-    if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
-        print("OK")
+    if validate_response(response):
         print(
             "Waiting for volume {} to detach... ".format(new_volume_id),
             end="",
@@ -772,12 +751,6 @@ def attach_ebs_volume(
         return True
 
     else:
-        print("FAILED")
-        print(
-            "Received {} error from AWS".format(
-                response["ResponseMetadata"]["HTTPStatusCode"]
-            )
-        )
         return False
 
 
@@ -956,10 +929,9 @@ def verify_instance(ec2_client, plan_instance_id, plan_instance_metadata):
     except botocore.exceptions.ProfileNotFound as profileerr:
         sys.exit(profileerr)
 
-    if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
+    if validate_response(response):
         for reservation in response["Reservations"]:
             if len(reservation["Instances"]) == 1:
-                print("FOUND")
                 for instance in reservation["Instances"]:
                     print("    Verifying Instance Name... ",
                         end="",
@@ -996,14 +968,6 @@ def verify_instance(ec2_client, plan_instance_id, plan_instance_metadata):
                 print("FAILED")
                 sys.exit("Error: The instance with Instance ID {} could not be found".format(plan_instance_id))
 
-    else:
-        print("FAILED")
-        print(
-            "Received {} error from AWS".format(
-                response["ResponseMetadata"]["HTTPStatusCode"]
-            )
-        )
-
 
 def verify_volume(ec2_client, plan_volume_id, plan_volume_metadata):
     """
@@ -1027,9 +991,8 @@ def verify_volume(ec2_client, plan_volume_id, plan_volume_metadata):
     except botocore.exceptions.ProfileNotFound as profileerr:
         sys.exit(profileerr)
 
-    if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
+    if validate_response(response):
         if len(response["Volumes"]) == 1:
-            print("FOUND")
             for volume in response["Volumes"]:
                 for key in plan_volume_metadata.keys():
                     print("    Verifying {}... ".format(key),
@@ -1060,14 +1023,6 @@ def verify_volume(ec2_client, plan_volume_id, plan_volume_metadata):
             print("FAILED")
             sys.exit("Error: The volume with Volume ID {} could not be found".format(plan_volume_id))
 
-    else:
-        print("FAILED")
-        print(
-            "Received {} error from AWS".format(
-                response["ResponseMetadata"]["HTTPStatusCode"]
-            )
-        )
-
 
 def verify_snapshot(ec2_client, plan_snapshot_id, plan_snapshot_metadata):
     """
@@ -1091,9 +1046,8 @@ def verify_snapshot(ec2_client, plan_snapshot_id, plan_snapshot_metadata):
     except botocore.exceptions.ProfileNotFound as profileerr:
         sys.exit(profileerr)
 
-    if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
+    if validate_response(response):
         if len(response["Snapshots"]) == 1:
-            print("FOUND")
             for snapshot in response["Snapshots"]:
                 for key in plan_snapshot_metadata.keys():
                     print("    Verifying {}... ".format(key),
@@ -1125,14 +1079,6 @@ def verify_snapshot(ec2_client, plan_snapshot_id, plan_snapshot_metadata):
         else:
             print("FAILED")
             sys.exit("Error: The snapshot with Snapshot ID {} could not be found".format(plan_snapshot_id))
-
-    else:
-        print("FAILED")
-        print(
-            "Received {} error from AWS".format(
-                response["ResponseMetadata"]["HTTPStatusCode"]
-            )
-        )
 
 
 def revalidate_loaded_plan(ec2_client, instance_dict):
