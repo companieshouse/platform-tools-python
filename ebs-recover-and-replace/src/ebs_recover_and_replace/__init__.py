@@ -679,7 +679,6 @@ def detach_ebs_volume(
                 print(waiterr.message)
 
 
-
 def attach_ebs_volume(
     ec2_client, instance_id, new_volume_id, device_name, wait_delay=15, wait_attempts=40
 ):
@@ -881,13 +880,12 @@ def verify_instance(ec2_client, plan_instance_id, plan_instance_metadata):
     and that the provided instance data matches
     """
 
-    print("Checking Instance ID: {}... ".format(plan_instance_id),
+    print(
+        "Checking Instance ID: {}... ".format(plan_instance_id),
     )
 
     try:
-        response = ec2_client.describe_instances(
-            InstanceIds=[plan_instance_id]
-        )
+        response = ec2_client.describe_instances(InstanceIds=[plan_instance_id])
 
     except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
         sys.exit(ssotokenerr)
@@ -906,20 +904,30 @@ def verify_instance(ec2_client, plan_instance_id, plan_instance_metadata):
                             instance_name = tags["Value"]
 
                     if plan_instance_metadata["Name"] != instance_name:
-                        sys.exit("Error: Instance name does not match\nPlan: {}, Actual: {}".format(
-                            plan_instance_metadata["Name"],
-                            instance_name
-                        ))
+                        sys.exit(
+                            "Error: Instance name does not match\nPlan: {}, Actual: {}".format(
+                                plan_instance_metadata["Name"], instance_name
+                            )
+                        )
 
                     print("    Verifying Instance IP Address... ")
-                    if plan_instance_metadata["IPAddress"] != instance["PrivateIpAddress"]:
-                        sys.exit("Error: Instance IP Address does not match\nPlan: {}, Actual: {}".format(
-                            plan_instance_metadata["IPAddress"],
-                            instance["PrivateIpAddress"]
-                        ))
+                    if (
+                        plan_instance_metadata["IPAddress"]
+                        != instance["PrivateIpAddress"]
+                    ):
+                        sys.exit(
+                            "Error: Instance IP Address does not match\nPlan: {}, Actual: {}".format(
+                                plan_instance_metadata["IPAddress"],
+                                instance["PrivateIpAddress"],
+                            )
+                        )
 
             else:
-                sys.exit("Error: The instance with Instance ID {} could not be found".format(plan_instance_id))
+                sys.exit(
+                    "Error: The instance with Instance ID {} could not be found".format(
+                        plan_instance_id
+                    )
+                )
 
 
 def verify_volume(ec2_client, plan_volume_id, plan_volume_metadata):
@@ -931,9 +939,7 @@ def verify_volume(ec2_client, plan_volume_id, plan_volume_metadata):
     print("Checking Volume ID: {}... ".format(plan_volume_id))
 
     try:
-        response = ec2_client.describe_volumes(
-            VolumeIds=[plan_volume_id]
-        )
+        response = ec2_client.describe_volumes(VolumeIds=[plan_volume_id])
 
     except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
         sys.exit(ssotokenerr)
@@ -947,21 +953,32 @@ def verify_volume(ec2_client, plan_volume_id, plan_volume_metadata):
                 for key in plan_volume_metadata.keys():
                     print("    Verifying {}... ".format(key))
                     if key == "DeviceName":
-                        if plan_volume_metadata[key] != volume["Attachments"][0]["Device"]:
-                            sys.exit("Error: {} does not match\nPlan: {}, Actual: {}".format(
+                        if (
+                            plan_volume_metadata[key]
+                            != volume["Attachments"][0]["Device"]
+                        ):
+                            sys.exit(
+                                "Error: {} does not match\nPlan: {}, Actual: {}".format(
+                                    key,
+                                    plan_volume_metadata[key],
+                                    volume["Attachments"][0]["Device"],
+                                )
+                            )
+                    elif plan_volume_metadata[key] != volume[key]:
+                        sys.exit(
+                            "Error: {} does not match\nPlan: {}, Actual: {}".format(
                                 key,
                                 plan_volume_metadata[key],
-                                volume["Attachments"][0]["Device"],
-                            ))
-                    elif plan_volume_metadata[key] != volume[key]:
-                        sys.exit("Error: {} does not match\nPlan: {}, Actual: {}".format(
-                            key,
-                            plan_volume_metadata[key],
-                            volume[key],
-                        ))
+                                volume[key],
+                            )
+                        )
 
         else:
-            sys.exit("Error: The volume with Volume ID {} could not be found".format(plan_volume_id))
+            sys.exit(
+                "Error: The volume with Volume ID {} could not be found".format(
+                    plan_volume_id
+                )
+            )
 
 
 def verify_snapshot(ec2_client, plan_snapshot_id, plan_snapshot_metadata):
@@ -973,9 +990,7 @@ def verify_snapshot(ec2_client, plan_snapshot_id, plan_snapshot_metadata):
     print("Checking Snapshot ID: {}... ".format(plan_snapshot_id))
 
     try:
-        response = ec2_client.describe_snapshots(
-            SnapshotIds=[plan_snapshot_id]
-        )
+        response = ec2_client.describe_snapshots(SnapshotIds=[plan_snapshot_id])
 
     except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
         sys.exit(ssotokenerr)
@@ -991,21 +1006,29 @@ def verify_snapshot(ec2_client, plan_snapshot_id, plan_snapshot_metadata):
                     if key == "StartTime":
                         snapshot_starttime = "{}".format(snapshot["StartTime"])
                         if plan_snapshot_metadata[key] != snapshot_starttime:
-                            sys.exit("Error: {} does not match\nPlan: {}, Actual: {}".format(
-                                key,
-                                plan_snapshot_metadata[key],
-                                snapshot_starttime,
-                            ))
+                            sys.exit(
+                                "Error: {} does not match\nPlan: {}, Actual: {}".format(
+                                    key,
+                                    plan_snapshot_metadata[key],
+                                    snapshot_starttime,
+                                )
+                            )
 
                     elif plan_snapshot_metadata[key] != snapshot[key]:
-                        sys.exit("Error: {} does not match\nPlan: {}, Actual: {}".format(
-                            key,
-                            plan_snapshot_metadata[key],
-                            snapshot[key],
-                        ))
+                        sys.exit(
+                            "Error: {} does not match\nPlan: {}, Actual: {}".format(
+                                key,
+                                plan_snapshot_metadata[key],
+                                snapshot[key],
+                            )
+                        )
 
         else:
-            sys.exit("Error: The snapshot with Snapshot ID {} could not be found".format(plan_snapshot_id))
+            sys.exit(
+                "Error: The snapshot with Snapshot ID {} could not be found".format(
+                    plan_snapshot_id
+                )
+            )
 
 
 def revalidate_loaded_plan(ec2_client, instance_dict):
@@ -1019,7 +1042,7 @@ def revalidate_loaded_plan(ec2_client, instance_dict):
     for instance_id in instance_dict:
         instance_metadata = {
             "Name": instance_dict[instance_id]["Name"],
-            "IPAddress": instance_dict[instance_id]["IPAddress"]
+            "IPAddress": instance_dict[instance_id]["IPAddress"],
         }
         verify_instance(ec2_client, instance_id, instance_metadata)
         print()
@@ -1031,7 +1054,7 @@ def revalidate_loaded_plan(ec2_client, instance_dict):
                 "AvailabilityZone": block_dev["AvailabilityZone"],
                 "Encrypted": block_dev["Encrypted"],
                 "Size": block_dev["Size"],
-                "VolumeType": block_dev["VolumeType"]
+                "VolumeType": block_dev["VolumeType"],
             }
 
             if block_dev["Encrypted"]:
@@ -1041,9 +1064,7 @@ def revalidate_loaded_plan(ec2_client, instance_dict):
             print()
 
             snapshot_id = block_dev["SnapshotData"][0]["SnapshotId"]
-            snapshot_metadata = {
-                "StartTime": block_dev["SnapshotData"][0]["StartTime"]
-            }
+            snapshot_metadata = {"StartTime": block_dev["SnapshotData"][0]["StartTime"]}
 
             verify_snapshot(ec2_client, snapshot_id, snapshot_metadata)
             print()
