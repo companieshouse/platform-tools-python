@@ -29,16 +29,13 @@ def process_searchtags(searchtags):
 
 def validate_response(response):
     if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
-        print("OK")
         return True
     else:
-        print("FAILED")
         sys.exit(
             "Received {} error from AWS".format(
                 response["ResponseMetadata"]["HTTPStatusCode"]
             )
         )
-        return False
 
 
 def create_ec2_client(awsprofile, awsregion):
@@ -528,8 +525,6 @@ def restore_ebs_volume(
 
     print(
         "Initiating restore from {} for {}... ".format(snapshot_id, device_name),
-        end="",
-        flush=True,
     )
     if block_device["Encrypted"]:
         response = ec2_client.create_volume(
@@ -555,8 +550,6 @@ def restore_ebs_volume(
         new_volume_id = response["VolumeId"]
         print(
             "Waiting for {} to become ready... ".format(new_volume_id),
-            end="",
-            flush=True,
         )
         new_volume_waiter = ec2_client.get_waiter("volume_available")
 
@@ -568,11 +561,9 @@ def restore_ebs_volume(
                 VolumeIds=[new_volume_id],
                 WaiterConfig={"Delay": wait_delay, "MaxAttempts": wait_attempts},
             )
-            print("OK")
             return new_volume_id
 
         except botocore.exceptions.WaiterError as waiterr:
-            print()
             if "Max attempts exceeded" in waiterr.message:
                 print(
                     "Stopping instance {} failed to complete in {} seconds".format(
@@ -592,16 +583,12 @@ def toggle_ec2_state(ec2_client, instance_id, state=1, wait_delay=15, wait_attem
     if state == 1:
         print(
             "Triggering start of instance {}... ".format(instance_id),
-            end="",
-            flush=True,
         )
         response = ec2_client.start_instances(InstanceIds=[instance_id])
 
         if validate_response(response):
             print(
                 "Waiting for instance {} to start... ".format(instance_id),
-                end="",
-                flush=True,
             )
             running_waiter = ec2_client.get_waiter("instance_running")
 
@@ -610,7 +597,6 @@ def toggle_ec2_state(ec2_client, instance_id, state=1, wait_delay=15, wait_attem
                     InstanceIds=[instance_id],
                     WaiterConfig={"Delay": wait_delay, "MaxAttempts": wait_attempts},
                 )
-                print("OK")
 
             except botocore.exceptions.WaiterError as waiterr:
                 print()
@@ -632,8 +618,6 @@ def toggle_ec2_state(ec2_client, instance_id, state=1, wait_delay=15, wait_attem
         if validate_response(response):
             print(
                 "Waiting for instance {} to stop... ".format(instance_id),
-                end="",
-                flush=True,
             )
             stop_waiter = ec2_client.get_waiter("instance_stopped")
 
@@ -642,7 +626,6 @@ def toggle_ec2_state(ec2_client, instance_id, state=1, wait_delay=15, wait_attem
                     InstanceIds=[instance_id],
                     WaiterConfig={"Delay": wait_delay, "MaxAttempts": wait_attempts},
                 )
-                print("OK")
 
             except botocore.exceptions.WaiterError as waiterr:
                 print()
@@ -666,8 +649,6 @@ def detach_ebs_volume(
     print()
     print(
         "Detaching volume: {} ({})... ".format(volume_id, device_name),
-        end="",
-        flush=True,
     )
     response = ec2_client.detach_volume(
         Device=device_name, InstanceId=instance_id, VolumeId=volume_id
@@ -685,7 +666,6 @@ def detach_ebs_volume(
                 VolumeIds=[volume_id],
                 WaiterConfig={"Delay": wait_delay, "MaxAttempts": wait_attempts},
             )
-            print("OK")
 
         except botocore.exceptions.WaiterError as waiterr:
             print()
@@ -698,10 +678,6 @@ def detach_ebs_volume(
             else:
                 print(waiterr.message)
 
-        return True
-
-    else:
-        return False
 
 
 def attach_ebs_volume(
@@ -714,8 +690,6 @@ def attach_ebs_volume(
     print()
     print(
         "Attaching volume: {} ({})... ".format(new_volume_id, device_name),
-        end="",
-        flush=True,
     )
     response = ec2_client.attach_volume(
         Device=device_name, InstanceId=instance_id, VolumeId=new_volume_id
@@ -724,8 +698,6 @@ def attach_ebs_volume(
     if validate_response(response):
         print(
             "Waiting for volume {} to detach... ".format(new_volume_id),
-            end="",
-            flush=True,
         )
         in_use_waiter = ec2_client.get_waiter("volume_in_use")
 
@@ -735,7 +707,6 @@ def attach_ebs_volume(
                 VolumeIds=[new_volume_id],
                 WaiterConfig={"Delay": wait_delay, "MaxAttempts": wait_attempts},
             )
-            print("OK")
 
         except botocore.exceptions.WaiterError as waiterr:
             print()
@@ -749,9 +720,6 @@ def attach_ebs_volume(
                 print(waiterr.message)
 
         return True
-
-    else:
-        return False
 
 
 def manage_restore_process(ec2_client, instance_dict, searchtags_dict):
@@ -914,8 +882,6 @@ def verify_instance(ec2_client, plan_instance_id, plan_instance_metadata):
     """
 
     print("Checking Instance ID: {}... ".format(plan_instance_id),
-        end="",
-        flush=True,
     )
 
     try:
@@ -933,39 +899,26 @@ def verify_instance(ec2_client, plan_instance_id, plan_instance_metadata):
         for reservation in response["Reservations"]:
             if len(reservation["Instances"]) == 1:
                 for instance in reservation["Instances"]:
-                    print("    Verifying Instance Name... ",
-                        end="",
-                        flush=True,
-                    )
+                    print("    Verifying Instance Name... ")
                     instance_name = ""
                     for tags in instance["Tags"]:
                         if tags["Key"] == "Name":
                             instance_name = tags["Value"]
 
-                    if plan_instance_metadata["Name"] == instance_name:
-                        print("OK")
-                    else:
-                        print("FAILED")
+                    if plan_instance_metadata["Name"] != instance_name:
                         sys.exit("Error: Instance name does not match\nPlan: {}, Actual: {}".format(
                             plan_instance_metadata["Name"],
                             instance_name
                         ))
 
-                    print("    Verifying Instance IP Address... ",
-                        end="",
-                        flush=True,
-                    )
-                    if plan_instance_metadata["IPAddress"] == instance["PrivateIpAddress"]:
-                        print("OK")
-                    else:
-                        print("FAILED")
+                    print("    Verifying Instance IP Address... ")
+                    if plan_instance_metadata["IPAddress"] != instance["PrivateIpAddress"]:
                         sys.exit("Error: Instance IP Address does not match\nPlan: {}, Actual: {}".format(
                             plan_instance_metadata["IPAddress"],
                             instance["PrivateIpAddress"]
                         ))
 
             else:
-                print("FAILED")
                 sys.exit("Error: The instance with Instance ID {} could not be found".format(plan_instance_id))
 
 
@@ -975,10 +928,7 @@ def verify_volume(ec2_client, plan_volume_id, plan_volume_metadata):
     and that the provided volume data matches
     """
 
-    print("Checking Volume ID: {}... ".format(plan_volume_id),
-        end="",
-        flush=True,
-    )
+    print("Checking Volume ID: {}... ".format(plan_volume_id))
 
     try:
         response = ec2_client.describe_volumes(
@@ -995,24 +945,15 @@ def verify_volume(ec2_client, plan_volume_id, plan_volume_metadata):
         if len(response["Volumes"]) == 1:
             for volume in response["Volumes"]:
                 for key in plan_volume_metadata.keys():
-                    print("    Verifying {}... ".format(key),
-                        end="",
-                        flush=True,
-                    )
+                    print("    Verifying {}... ".format(key))
                     if key == "DeviceName":
-                        if plan_volume_metadata[key] == volume["Attachments"][0]["Device"]:
-                            print("OK")
-                        else:
-                            print("FAILED")
+                        if plan_volume_metadata[key] != volume["Attachments"][0]["Device"]:
                             sys.exit("Error: {} does not match\nPlan: {}, Actual: {}".format(
                                 key,
                                 plan_volume_metadata[key],
                                 volume["Attachments"][0]["Device"],
                             ))
-                    elif plan_volume_metadata[key] == volume[key]:
-                        print("OK")
-                    else:
-                        print("FAILED")
+                    elif plan_volume_metadata[key] != volume[key]:
                         sys.exit("Error: {} does not match\nPlan: {}, Actual: {}".format(
                             key,
                             plan_volume_metadata[key],
@@ -1020,7 +961,6 @@ def verify_volume(ec2_client, plan_volume_id, plan_volume_metadata):
                         ))
 
         else:
-            print("FAILED")
             sys.exit("Error: The volume with Volume ID {} could not be found".format(plan_volume_id))
 
 
@@ -1030,10 +970,7 @@ def verify_snapshot(ec2_client, plan_snapshot_id, plan_snapshot_metadata):
     and that the provided snapshot data matches
     """
 
-    print("Checking Snapshot ID: {}... ".format(plan_snapshot_id),
-        end="",
-        flush=True,
-    )
+    print("Checking Snapshot ID: {}... ".format(plan_snapshot_id))
 
     try:
         response = ec2_client.describe_snapshots(
@@ -1050,26 +987,17 @@ def verify_snapshot(ec2_client, plan_snapshot_id, plan_snapshot_metadata):
         if len(response["Snapshots"]) == 1:
             for snapshot in response["Snapshots"]:
                 for key in plan_snapshot_metadata.keys():
-                    print("    Verifying {}... ".format(key),
-                        end="",
-                        flush=True,
-                    )
+                    print("    Verifying {}... ".format(key))
                     if key == "StartTime":
                         snapshot_starttime = "{}".format(snapshot["StartTime"])
-                        if plan_snapshot_metadata[key] == snapshot_starttime:
-                            print("OK")
-                        else:
-                            print("FAILED")
+                        if plan_snapshot_metadata[key] != snapshot_starttime:
                             sys.exit("Error: {} does not match\nPlan: {}, Actual: {}".format(
                                 key,
                                 plan_snapshot_metadata[key],
                                 snapshot_starttime,
                             ))
 
-                    elif plan_snapshot_metadata[key] == snapshot[key]:
-                        print("OK")
-                    else:
-                        print("FAILED")
+                    elif plan_snapshot_metadata[key] != snapshot[key]:
                         sys.exit("Error: {} does not match\nPlan: {}, Actual: {}".format(
                             key,
                             plan_snapshot_metadata[key],
@@ -1077,7 +1005,6 @@ def verify_snapshot(ec2_client, plan_snapshot_id, plan_snapshot_metadata):
                         ))
 
         else:
-            print("FAILED")
             sys.exit("Error: The snapshot with Snapshot ID {} could not be found".format(plan_snapshot_id))
 
 
