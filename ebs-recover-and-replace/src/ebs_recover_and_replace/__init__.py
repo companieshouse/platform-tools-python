@@ -564,8 +564,8 @@ def restore_ebs_volume(
     except botocore.exceptions.WaiterError as waiterr:
         if "Max attempts exceeded" in waiterr.message:
             print(
-                "Stopping instance {} failed to complete in {} seconds".format(
-                    instance_id, wait_delay * wait_attempts
+                "Volume {} failed to become ready in {} seconds".format(
+                    new_volume_id, wait_delay * wait_attempts
                 )
             )
         else:
