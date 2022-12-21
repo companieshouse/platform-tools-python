@@ -27,6 +27,15 @@ def process_searchtags(searchtags):
     return clean_dict
 
 
+def validate_response(response):
+    if response["ResponseMetadata"]["HTTPStatusCode"] != 200:
+        sys.exit(
+            "Received {} error from AWS".format(
+                response["ResponseMetadata"]["HTTPStatusCode"]
+            )
+        )
+
+
 def create_ec2_client(awsprofile, awsregion):
     """
     Connects to the AWS API and returns an EC2 client object
@@ -514,8 +523,6 @@ def restore_ebs_volume(
 
     print(
         "Initiating restore from {} for {}... ".format(snapshot_id, device_name),
-        end="",
-        flush=True,
     )
     if block_device["Encrypted"]:
         response = ec2_client.create_volume(
@@ -537,26 +544,86 @@ def restore_ebs_volume(
             TagSpecifications=[{"ResourceType": "volume", "Tags": tags_list}],
         )
 
-    if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
-        print("OK")
-        new_volume_id = response["VolumeId"]
-        print(
-            "Waiting for {} to become ready... ".format(new_volume_id),
-            end="",
-            flush=True,
+    validate_response(response)
+    new_volume_id = response["VolumeId"]
+    print(
+        "Waiting for {} to become ready... ".format(new_volume_id),
+    )
+    new_volume_waiter = ec2_client.get_waiter("volume_available")
+
+    try:
+        new_volume_waiter.wait(
+            Filters=[
+                {"Name": "status", "Values": ["available"]},
+            ],
+            VolumeIds=[new_volume_id],
+            WaiterConfig={"Delay": wait_delay, "MaxAttempts": wait_attempts},
         )
-        new_volume_waiter = ec2_client.get_waiter("volume_available")
+        return new_volume_id
+
+    except botocore.exceptions.WaiterError as waiterr:
+        if "Max attempts exceeded" in waiterr.message:
+            print(
+                "Volume {} failed to become ready in {} seconds".format(
+                    new_volume_id, wait_delay * wait_attempts
+                )
+            )
+        else:
+            print(waiterr.message)
+
+
+def toggle_ec2_state(ec2_client, instance_id, state=1, wait_delay=15, wait_attempts=40):
+    """
+    Basic instance state toggle.  Requires an instance_id to operate against
+    and a desired state. 0 = stop instance, 1 = start instance
+    """
+    print()
+    if state == 1:
+        print(
+            "Triggering start of instance {}... ".format(instance_id),
+        )
+        response = ec2_client.start_instances(InstanceIds=[instance_id])
+
+        validate_response(response)
+        print(
+            "Waiting for instance {} to start... ".format(instance_id),
+        )
+        running_waiter = ec2_client.get_waiter("instance_running")
 
         try:
-            new_volume_waiter.wait(
-                Filters=[
-                    {"Name": "status", "Values": ["available"]},
-                ],
-                VolumeIds=[new_volume_id],
+            running_waiter.wait(
+                InstanceIds=[instance_id],
                 WaiterConfig={"Delay": wait_delay, "MaxAttempts": wait_attempts},
             )
-            print("OK")
-            return new_volume_id
+
+        except botocore.exceptions.WaiterError as waiterr:
+            print()
+            if "Max attempts exceeded" in waiterr.message:
+                print(
+                    "Instance {} failed to start in {} seconds".format(
+                        instance_id, wait_delay * wait_attempts
+                    )
+                )
+            else:
+                print(waiterr.message)
+
+    else:
+        print(
+            "Triggering stop of instance {}... ".format(instance_id), end="", flush=True
+        )
+        response = ec2_client.stop_instances(InstanceIds=[instance_id])
+
+        validate_response(response)
+        print(
+            "Waiting for instance {} to stop... ".format(instance_id),
+        )
+        stop_waiter = ec2_client.get_waiter("instance_stopped")
+
+        try:
+            stop_waiter.wait(
+                InstanceIds=[instance_id],
+                WaiterConfig={"Delay": wait_delay, "MaxAttempts": wait_attempts},
+            )
 
         except botocore.exceptions.WaiterError as waiterr:
             print()
@@ -569,105 +636,6 @@ def restore_ebs_volume(
             else:
                 print(waiterr.message)
 
-    else:
-        print("FAILED")
-        print(
-            "Received {} error from AWS".format(
-                response["ResponseMetadata"]["HTTPStatusCode"]
-            )
-        )
-
-
-def toggle_ec2_state(ec2_client, instance_id, state=1, wait_delay=15, wait_attempts=40):
-    """
-    Basic instance state toggle.  Requires an instance_id to operate against
-    and a desired state. 0 = stop instance, 1 = start instance
-    """
-    print()
-    if state == 1:
-        print(
-            "Triggering start of instance {}... ".format(instance_id),
-            end="",
-            flush=True,
-        )
-        response = ec2_client.start_instances(InstanceIds=[instance_id])
-
-        if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
-            print("OK")
-            print(
-                "Waiting for instance {} to start... ".format(instance_id),
-                end="",
-                flush=True,
-            )
-            running_waiter = ec2_client.get_waiter("instance_running")
-
-            try:
-                running_waiter.wait(
-                    InstanceIds=[instance_id],
-                    WaiterConfig={"Delay": wait_delay, "MaxAttempts": wait_attempts},
-                )
-                print("OK")
-
-            except botocore.exceptions.WaiterError as waiterr:
-                print()
-                if "Max attempts exceeded" in waiterr.message:
-                    print(
-                        "Instance {} failed to start in {} seconds".format(
-                            instance_id, wait_delay * wait_attempts
-                        )
-                    )
-                else:
-                    print(waiterr.message)
-
-        else:
-            print("FAILED")
-            print(
-                "Received {} error from AWS".format(
-                    response["ResponseMetadata"]["HTTPStatusCode"]
-                )
-            )
-
-    else:
-        print(
-            "Triggering stop of instance {}... ".format(instance_id), end="", flush=True
-        )
-        response = ec2_client.stop_instances(InstanceIds=[instance_id])
-
-        if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
-            print("OK")
-            print(
-                "Waiting for instance {} to stop... ".format(instance_id),
-                end="",
-                flush=True,
-            )
-            stop_waiter = ec2_client.get_waiter("instance_stopped")
-
-            try:
-                stop_waiter.wait(
-                    InstanceIds=[instance_id],
-                    WaiterConfig={"Delay": wait_delay, "MaxAttempts": wait_attempts},
-                )
-                print("OK")
-
-            except botocore.exceptions.WaiterError as waiterr:
-                print()
-                if "Max attempts exceeded" in waiterr.message:
-                    print(
-                        "Stopping instance {} failed to complete in {} seconds".format(
-                            instance_id, wait_delay * wait_attempts
-                        )
-                    )
-                else:
-                    print(waiterr.message)
-
-        else:
-            print("FAILED")
-            print(
-                "Received {} error from AWS".format(
-                    response["ResponseMetadata"]["HTTPStatusCode"]
-                )
-            )
-
 
 def detach_ebs_volume(
     ec2_client, instance_id, volume_id, device_name, wait_delay=15, wait_attempts=40
@@ -679,49 +647,34 @@ def detach_ebs_volume(
     print()
     print(
         "Detaching volume: {} ({})... ".format(volume_id, device_name),
-        end="",
-        flush=True,
     )
     response = ec2_client.detach_volume(
         Device=device_name, InstanceId=instance_id, VolumeId=volume_id
     )
 
-    if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
-        print("OK")
-        print(
-            "Waiting for volume {} to detach... ".format(volume_id), end="", flush=True
+    validate_response(response)
+    print(
+        "Waiting for volume {} to detach... ".format(volume_id), end="", flush=True
+    )
+    available_waiter = ec2_client.get_waiter("volume_available")
+
+    try:
+        available_waiter.wait(
+            Filters=[{"Name": "status", "Values": ["available"]}],
+            VolumeIds=[volume_id],
+            WaiterConfig={"Delay": wait_delay, "MaxAttempts": wait_attempts},
         )
-        available_waiter = ec2_client.get_waiter("volume_available")
 
-        try:
-            available_waiter.wait(
-                Filters=[{"Name": "status", "Values": ["available"]}],
-                VolumeIds=[volume_id],
-                WaiterConfig={"Delay": wait_delay, "MaxAttempts": wait_attempts},
-            )
-            print("OK")
-
-        except botocore.exceptions.WaiterError as waiterr:
-            print()
-            if "Max attempts exceeded" in waiterr.message:
-                print(
-                    "Volume {} failed to detach in {} seconds".format(
-                        volume_id, wait_delay * wait_attempts
-                    )
+    except botocore.exceptions.WaiterError as waiterr:
+        print()
+        if "Max attempts exceeded" in waiterr.message:
+            print(
+                "Volume {} failed to detach in {} seconds".format(
+                    volume_id, wait_delay * wait_attempts
                 )
-            else:
-                print(waiterr.message)
-
-        return True
-
-    else:
-        print("FAILED")
-        print(
-            "Received {} error from AWS".format(
-                response["ResponseMetadata"]["HTTPStatusCode"]
             )
-        )
-        return False
+        else:
+            print(waiterr.message)
 
 
 def attach_ebs_volume(
@@ -734,51 +687,36 @@ def attach_ebs_volume(
     print()
     print(
         "Attaching volume: {} ({})... ".format(new_volume_id, device_name),
-        end="",
-        flush=True,
     )
     response = ec2_client.attach_volume(
         Device=device_name, InstanceId=instance_id, VolumeId=new_volume_id
     )
 
-    if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
-        print("OK")
-        print(
-            "Waiting for volume {} to detach... ".format(new_volume_id),
-            end="",
-            flush=True,
+    validate_response(response)
+    print(
+        "Waiting for volume {} to detach... ".format(new_volume_id),
+    )
+    in_use_waiter = ec2_client.get_waiter("volume_in_use")
+
+    try:
+        in_use_waiter.wait(
+            Filters=[{"Name": "status", "Values": ["in-use"]}],
+            VolumeIds=[new_volume_id],
+            WaiterConfig={"Delay": wait_delay, "MaxAttempts": wait_attempts},
         )
-        in_use_waiter = ec2_client.get_waiter("volume_in_use")
 
-        try:
-            in_use_waiter.wait(
-                Filters=[{"Name": "status", "Values": ["in-use"]}],
-                VolumeIds=[new_volume_id],
-                WaiterConfig={"Delay": wait_delay, "MaxAttempts": wait_attempts},
-            )
-            print("OK")
-
-        except botocore.exceptions.WaiterError as waiterr:
-            print()
-            if "Max attempts exceeded" in waiterr.message:
-                print(
-                    "Volume {} failed to attach in {} seconds".format(
-                        new_volume_id, wait_delay * wait_attempts
-                    )
+    except botocore.exceptions.WaiterError as waiterr:
+        print()
+        if "Max attempts exceeded" in waiterr.message:
+            print(
+                "Volume {} failed to attach in {} seconds".format(
+                    new_volume_id, wait_delay * wait_attempts
                 )
-            else:
-                print(waiterr.message)
-
-        return True
-
-    else:
-        print("FAILED")
-        print(
-            "Received {} error from AWS".format(
-                response["ResponseMetadata"]["HTTPStatusCode"]
             )
-        )
-        return False
+        else:
+            print(waiterr.message)
+
+    return True
 
 
 def manage_restore_process(ec2_client, instance_dict, searchtags_dict):
@@ -934,6 +872,202 @@ def load_plan(load_file):
     return input_dict["plan"]["searchtags_dict"], input_dict["plan"]["instance_dict"]
 
 
+def verify_instance(ec2_client, plan_instance_id, plan_instance_metadata):
+    """
+    Verifies that the provided Instance exists in AWS
+    and that the provided instance data matches
+    """
+
+    print(
+        "Checking Instance ID: {}... ".format(plan_instance_id),
+    )
+
+    try:
+        response = ec2_client.describe_instances(InstanceIds=[plan_instance_id])
+
+    except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
+        sys.exit(ssotokenerr)
+
+    except botocore.exceptions.ProfileNotFound as profileerr:
+        sys.exit(profileerr)
+
+    validate_response(response)
+    for reservation in response["Reservations"]:
+        if len(reservation["Instances"]) == 1:
+            for instance in reservation["Instances"]:
+                print("    Verifying Instance Name... ")
+                instance_name = ""
+                for tags in instance["Tags"]:
+                    if tags["Key"] == "Name":
+                        instance_name = tags["Value"]
+
+                if plan_instance_metadata["Name"] != instance_name:
+                    sys.exit(
+                        "Error: Instance name does not match\nPlan: {}, Actual: {}".format(
+                            plan_instance_metadata["Name"], instance_name
+                        )
+                    )
+
+                print("    Verifying Instance IP Address... ")
+                if (
+                    plan_instance_metadata["IPAddress"]
+                    != instance["PrivateIpAddress"]
+                ):
+                    sys.exit(
+                        "Error: Instance IP Address does not match\nPlan: {}, Actual: {}".format(
+                            plan_instance_metadata["IPAddress"],
+                            instance["PrivateIpAddress"],
+                        )
+                    )
+
+        else:
+            sys.exit(
+                "Error: The instance with Instance ID {} could not be found".format(
+                    plan_instance_id
+                )
+            )
+
+
+def verify_volume(ec2_client, plan_volume_id, plan_volume_metadata):
+    """
+    Verifies that the provided Volume exists in AWS
+    and that the provided volume data matches
+    """
+
+    print("Checking Volume ID: {}... ".format(plan_volume_id))
+
+    try:
+        response = ec2_client.describe_volumes(VolumeIds=[plan_volume_id])
+
+    except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
+        sys.exit(ssotokenerr)
+
+    except botocore.exceptions.ProfileNotFound as profileerr:
+        sys.exit(profileerr)
+
+    validate_response(response)
+    if len(response["Volumes"]) == 1:
+        for volume in response["Volumes"]:
+            for key in plan_volume_metadata.keys():
+                print("    Verifying {}... ".format(key))
+                if key == "DeviceName":
+                    if (
+                        plan_volume_metadata[key]
+                        != volume["Attachments"][0]["Device"]
+                    ):
+                        sys.exit(
+                            "Error: {} does not match\nPlan: {}, Actual: {}".format(
+                                key,
+                                plan_volume_metadata[key],
+                                volume["Attachments"][0]["Device"],
+                            )
+                        )
+                elif plan_volume_metadata[key] != volume[key]:
+                    sys.exit(
+                        "Error: {} does not match\nPlan: {}, Actual: {}".format(
+                            key,
+                            plan_volume_metadata[key],
+                            volume[key],
+                        )
+                    )
+
+    else:
+        sys.exit(
+            "Error: The volume with Volume ID {} could not be found".format(
+                plan_volume_id
+            )
+        )
+
+
+def verify_snapshot(ec2_client, plan_snapshot_id, plan_snapshot_metadata):
+    """
+    Verifies that the provided Snapshot exists in AWS
+    and that the provided snapshot data matches
+    """
+
+    print("Checking Snapshot ID: {}... ".format(plan_snapshot_id))
+
+    try:
+        response = ec2_client.describe_snapshots(SnapshotIds=[plan_snapshot_id])
+
+    except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
+        sys.exit(ssotokenerr)
+
+    except botocore.exceptions.ProfileNotFound as profileerr:
+        sys.exit(profileerr)
+
+    validate_response(response)
+    if len(response["Snapshots"]) == 1:
+        for snapshot in response["Snapshots"]:
+            for key in plan_snapshot_metadata.keys():
+                print("    Verifying {}... ".format(key))
+                if key == "StartTime":
+                    snapshot_starttime = "{}".format(snapshot["StartTime"])
+                    if plan_snapshot_metadata[key] != snapshot_starttime:
+                        sys.exit(
+                            "Error: {} does not match\nPlan: {}, Actual: {}".format(
+                                key,
+                                plan_snapshot_metadata[key],
+                                snapshot_starttime,
+                            )
+                        )
+
+                elif plan_snapshot_metadata[key] != snapshot[key]:
+                    sys.exit(
+                        "Error: {} does not match\nPlan: {}, Actual: {}".format(
+                            key,
+                            plan_snapshot_metadata[key],
+                            snapshot[key],
+                        )
+                    )
+
+    else:
+        sys.exit(
+            "Error: The snapshot with Snapshot ID {} could not be found".format(
+                plan_snapshot_id
+            )
+        )
+
+
+def revalidate_loaded_plan(ec2_client, instance_dict):
+    """
+    Re-validates the provided instance_dict to ensure the supplied
+    AWS resource IDs are valid and still exist
+    """
+    print()
+    print("Re-validating resource IDs...")
+
+    for instance_id in instance_dict:
+        instance_metadata = {
+            "Name": instance_dict[instance_id]["Name"],
+            "IPAddress": instance_dict[instance_id]["IPAddress"],
+        }
+        verify_instance(ec2_client, instance_id, instance_metadata)
+        print()
+
+        for block_dev in instance_dict[instance_id]["BlockDevs"]:
+            volume_id = block_dev["VolumeId"]
+            volume_metadata = {
+                "DeviceName": block_dev["DeviceName"],
+                "AvailabilityZone": block_dev["AvailabilityZone"],
+                "Encrypted": block_dev["Encrypted"],
+                "Size": block_dev["Size"],
+                "VolumeType": block_dev["VolumeType"],
+            }
+
+            if block_dev["Encrypted"]:
+                volume_metadata.update({"KmsKeyId": block_dev["KmsKeyId"]})
+
+            verify_volume(ec2_client, volume_id, volume_metadata)
+            print()
+
+            snapshot_id = block_dev["SnapshotData"][0]["SnapshotId"]
+            snapshot_metadata = {"StartTime": block_dev["SnapshotData"][0]["StartTime"]}
+
+            verify_snapshot(ec2_client, snapshot_id, snapshot_metadata)
+            print()
+
+
 def main():
     """
     Setup ArgumentParser
@@ -1018,6 +1152,8 @@ def main():
 
         if args.loadplan is not None:
             searchtags_dict, instance_dict = load_plan(args.loadplan)
+            separator()
+            revalidate_loaded_plan(ec2_client, instance_dict)
             separator()
         else:
             instance_dict = query_ec2_instances(ec2_client, searchtags_dict)
