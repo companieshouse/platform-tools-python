@@ -9,6 +9,34 @@ import time
 
 from collections import Counter
 
+class colours:
+    dblue = "\033[0;34m"
+    dyellow = "\033[0;33m"
+    dgreen = "\033[0;32m"
+    dred = "\033[0;31m"
+    bblue = "\033[1;34m"
+    byellow = "\033[1;33m"
+    bgreen = "\033[1;32m"
+    bred = "\033[1;31m"
+    bold = "\033[1m"
+    endc = "\033[0m"
+
+
+def log_output(message="", severity="info", indent=0):
+    if severity == "info":
+        prefix = f"{colours.dblue}{severity.capitalize()}:{colours.endc} "
+
+    if severity == "warn":
+        prefix = f"{colours.byellow}{severity.capitalize()}:{colours.endc} "
+
+    if severity == "error":
+        prefix = f"{colours.dred}{severity.capitalize()}:{colours.endc} "
+
+    if severity == "indent":
+        prefix = f"{'':<{indent}}"
+
+    print(prefix + message)
+
 
 def separator(width=72):
     print()
@@ -1118,11 +1146,12 @@ def main():
     args = parser.parse_args()
 
     if args.saveplan is not None and args.loadplan is not None:
-        print("Error: saveplan and loadplan options are mutually exclusive")
+        log_output("saveplan and loadplan options are mutually exclusive", "error")
         sys.exit(1)
 
     if args.searchtags is None and args.loadplan is None:
-        sys.exit("error: --searchtags not provided")
+        log_output("--searchtags not provided", "error")
+        sys.exit(1)
     elif args.searchtags is not None and args.loadplan is None:
         searchtags_dict = process_searchtags(args.searchtags)
 
@@ -1132,7 +1161,8 @@ def main():
     command line argument take precedence.
     """
     if not os.environ.get("AWS_PROFILE") and args.profile == "":
-        sys.exit("Error: AWS_PROFILE is not set and no profile specified.")
+        log_output("AWS_PROFILE is not set and --profile not set.", "error")
+        sys.exit(1)
     elif os.environ.get("AWS_PROFILE") and args.profile == "":
         awsprofile = os.environ.get("AWS_PROFILE")
     elif not os.environ.get("AWS_PROFILE") and args.profile != "":
@@ -1140,7 +1170,8 @@ def main():
     elif os.environ.get("AWS_PROFILE") and args.profile != "":
         awsprofile = args.profile
     else:
-        sys.exit("Unexpected error determining AWS Profile.")
+        log_output("Unexpected error determining AWS Profile.", "error")
+        sys.exit(1)
 
     """
     Run the main script sequence encapsulated in a try/except so we
