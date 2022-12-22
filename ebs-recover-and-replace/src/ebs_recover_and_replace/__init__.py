@@ -61,7 +61,9 @@ def process_searchtags(searchtags):
 
 def validate_response(response):
     if response["ResponseMetadata"]["HTTPStatusCode"] != 200:
-        log_output(f"Received {response["ResponseMetadata"]["HTTPStatusCode"]} error from AWS","error")
+        log_output("Received {} error from AWS".format(
+            response["ResponseMetadata"]["HTTPStatusCode"]
+        ), "error")
 
 
 def create_ec2_client(awsprofile, awsregion):
