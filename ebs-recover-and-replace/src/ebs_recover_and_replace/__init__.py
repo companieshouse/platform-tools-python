@@ -23,17 +23,18 @@ class colours:
 
 
 def log_output(message="", severity="info", indent=0):
-    if severity == "info":
-        prefix = f"{colours.dblue}{severity.capitalize()}:{colours.endc} "
-
-    if severity == "warn":
-        prefix = f"{colours.byellow}{severity.capitalize()}:{colours.endc} "
-
     if severity == "error":
-        prefix = f"{colours.dred}{severity.capitalize()}:{colours.endc} "
+        print(f"{colours.dred}{severity.capitalize()}:{colours.endc} {message}")
+        sys.exit(1)
+    else:
+        if severity == "info":
+            prefix = f"{colours.dblue}{severity.capitalize()}:{colours.endc} "
 
-    if severity == "indent":
-        prefix = f"{'':<{indent}}"
+        if severity == "warn":
+            prefix = f"{colours.byellow}{severity.capitalize()}:{colours.endc} "
+
+        if severity == "indent":
+            prefix = f"{'':<{indent}}"
 
     print(prefix + message)
 
@@ -57,10 +58,11 @@ def process_searchtags(searchtags):
 
 def validate_response(response):
     if response["ResponseMetadata"]["HTTPStatusCode"] != 200:
-        sys.exit(
+        log_output(
             "Received {} error from AWS".format(
                 response["ResponseMetadata"]["HTTPStatusCode"]
-            )
+            ),
+            "error"
         )
 
 
@@ -68,9 +70,9 @@ def create_ec2_client(awsprofile, awsregion):
     """
     Connects to the AWS API and returns an EC2 client object
     """
-    print("Connecting to AWS...")
-    print("AWS Profile:".ljust(20) + "{}".format(awsprofile))
-    print("AWS Region:".ljust(20) + "{}".format(awsregion))
+    log_output("Connecting to AWS...", "info")
+    log_output("AWS Profile: [{}]".format(awsprofile), "info")
+    log_output("AWS Region:  [{}]".format(awsregion), "info")
     try:
         # Connect to EC2
         session = boto3.Session(profile_name=awsprofile)
@@ -93,8 +95,8 @@ def query_ec2_instances(ec2_client, searchtags, instanceid=None):
     formed from the provided tag names and values.
     Can optionally be provided an instance ID to further refine the results.
     """
-    print("Querying instances...")
-    print("Search Tags:".ljust(20) + "{}".format(searchtags))
+    log_output("Querying instances...", "info")
+    log_output("Search Tags: [{}]".format(searchtags), "info")
     filters_list = []
     for tagname, tagvalue in searchtags.items():
         filters_list.append({"Name": "tag:" + tagname, "Values": [tagvalue]})
@@ -109,10 +111,10 @@ def query_ec2_instances(ec2_client, searchtags, instanceid=None):
         )
 
     except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
-        sys.exit(ssotokenerr)
+        log_output(ssotokenerr, "error")
 
     except botocore.exceptions.ProfileNotFound as profileerr:
-        sys.exit(profileerr)
+        log_output(profileerr, "error")
 
     instance_dict = {}
     for reservation in running_instances["Reservations"]:
@@ -143,7 +145,7 @@ def query_ec2_instances(ec2_client, searchtags, instanceid=None):
 
     if instances_num == 0:
         ec2_client.close()
-        sys.exit("No results returned")
+        log_output("No results returned", "warn")
     else:
         return instance_dict
 
@@ -153,14 +155,12 @@ def get_instance_choice(instance_dict):
     If more than 1 instance is returned on a query, the user must specify on which
     instance the operations are to take place on.
     """
-    print("Instances Found:".ljust(20) + "{}".format(len(Counter(instance_dict))))
-    print("Select an instance to continue:")
+    log_output(f"Instances Found: {len(Counter(instance_dict))}", "info")
+    print("\nSelect an instance to continue:")
     for index, instance_id in enumerate(instance_dict):
         instance_name = instance_dict[instance_id]["Name"]
         private_ip = instance_dict[instance_id]["IPAddress"]
-        print(
-            "    [{}] {}, {} ({})".format(index, instance_id, instance_name, private_ip)
-        )
+        log_output(f"[{index}] {instance_id}, {instance_name} ({private_ip})", "indent", 4)
 
     print()
     while True:
@@ -168,19 +168,11 @@ def get_instance_choice(instance_dict):
         try:
             selection_int = int(selection_raw)
         except ValueError:
-            print(
-                "Selection must be a number from 0 to {}".format(
-                    len(Counter(instance_dict)) - 1
-                )
-            )
+            log_output(f"Selection must be a number from 0 to {len(Counter(instance_dict)) - 1}", "warn")
             continue
 
         if not (0 <= selection_int <= len(Counter(instance_dict)) - 1):
-            print(
-                "Selection must be a number from 0 to {}".format(
-                    len(Counter(instance_dict)) - 1
-                )
-            )
+            log_output(f"Selection must be a number from 0 to {len(Counter(instance_dict)) - 1}", "warn")
             continue
         else:
             for index, instance_id in enumerate(instance_dict):
@@ -1147,11 +1139,9 @@ def main():
 
     if args.saveplan is not None and args.loadplan is not None:
         log_output("saveplan and loadplan options are mutually exclusive", "error")
-        sys.exit(1)
 
     if args.searchtags is None and args.loadplan is None:
         log_output("--searchtags not provided", "error")
-        sys.exit(1)
     elif args.searchtags is not None and args.loadplan is None:
         searchtags_dict = process_searchtags(args.searchtags)
 
@@ -1162,7 +1152,6 @@ def main():
     """
     if not os.environ.get("AWS_PROFILE") and args.profile == "":
         log_output("AWS_PROFILE is not set and --profile not set.", "error")
-        sys.exit(1)
     elif os.environ.get("AWS_PROFILE") and args.profile == "":
         awsprofile = os.environ.get("AWS_PROFILE")
     elif not os.environ.get("AWS_PROFILE") and args.profile != "":
@@ -1171,7 +1160,6 @@ def main():
         awsprofile = args.profile
     else:
         log_output("Unexpected error determining AWS Profile.", "error")
-        sys.exit(1)
 
     """
     Run the main script sequence encapsulated in a try/except so we
@@ -1215,12 +1203,13 @@ def main():
                 manage_restore_process(ec2_client, instance_dict, searchtags_dict)
             else:
                 ec2_client.close()
-                sys.exit("\nOperation cancelled by user.\n")
+                log_output("Operation cancelled by user.", "warn")
 
             ec2_client.close()
 
     except KeyboardInterrupt:
-        sys.exit("\nOperation cancelled by user.\n")
+        print()
+        log_output("Operation cancelled by user.", "warn")
 
 
 if __name__ == "__main__":
