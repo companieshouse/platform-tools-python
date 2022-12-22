@@ -10,31 +10,34 @@ import time
 from collections import Counter
 
 class colours:
-    dblue = "\033[0;34m"
+    dblue   = "\033[0;34m"
     dyellow = "\033[0;33m"
-    dgreen = "\033[0;32m"
-    dred = "\033[0;31m"
-    bblue = "\033[1;34m"
+    dgreen  = "\033[0;32m"
+    dred    = "\033[0;31m"
+    bblue   = "\033[1;34m"
     byellow = "\033[1;33m"
-    bgreen = "\033[1;32m"
-    bred = "\033[1;31m"
-    bold = "\033[1m"
-    endc = "\033[0m"
+    bgreen  = "\033[1;32m"
+    bred    = "\033[1;31m"
+    bold    = "\033[1m"
+    end     = "\033[0m"
 
 
-def log_output(message="", severity="info", indent=0):
-    if severity == "error":
-        print(f"{colours.dred}{severity.capitalize()}:{colours.endc} {message}")
+def log_output(message="", level="info", indent=0):
+    if level == "error":
+        print(f"{colours.dred}{level.capitalize()}:{colours.end} {message}")
         sys.exit(1)
     else:
-        if severity == "info":
-            prefix = f"{colours.dblue}{severity.capitalize()}:{colours.endc} "
+        if level == "info":
+            prefix = f"{colours.dblue}{level.capitalize()}:{colours.end} "
 
-        if severity == "warn":
-            prefix = f"{colours.byellow}{severity.capitalize()}:{colours.endc} "
+        if level == "warn":
+            prefix = f"{colours.byellow}{level.capitalize()}:{colours.end} "
 
-        if severity == "indent":
+        if level == "indent":
             prefix = f"{'':<{indent}}"
+        
+        if level == "choice":
+            prefix = f"{colours.bgreen}->{colours.end} "
 
     print(prefix + message)
 
@@ -58,12 +61,7 @@ def process_searchtags(searchtags):
 
 def validate_response(response):
     if response["ResponseMetadata"]["HTTPStatusCode"] != 200:
-        log_output(
-            "Received {} error from AWS".format(
-                response["ResponseMetadata"]["HTTPStatusCode"]
-            ),
-            "error"
-        )
+        log_output(f"Received {response["ResponseMetadata"]["HTTPStatusCode"]} error from AWS","error")
 
 
 def create_ec2_client(awsprofile, awsregion):
@@ -80,13 +78,13 @@ def create_ec2_client(awsprofile, awsregion):
         return ec2_client
 
     except botocore.exceptions.NoCredentialsError as nocrederr:
-        sys.exit(nocrederr)
+        log_output(nocrederr, "error")
 
     except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
-        sys.exit(ssotokenerr)
+        log_output(ssotokenerr, "error")
 
     except botocore.exceptions.ProfileNotFound as profileerr:
-        sys.exit(profileerr)
+        log_output(profileerr, "error")
 
 
 def query_ec2_instances(ec2_client, searchtags, instanceid=None):
@@ -145,7 +143,7 @@ def query_ec2_instances(ec2_client, searchtags, instanceid=None):
 
     if instances_num == 0:
         ec2_client.close()
-        log_output("No results returned", "warn")
+        log_output("No results returned", "error")
     else:
         return instance_dict
 
@@ -156,7 +154,7 @@ def get_instance_choice(instance_dict):
     instance the operations are to take place on.
     """
     log_output(f"Instances Found: {len(Counter(instance_dict))}", "info")
-    print("\nSelect an instance to continue:")
+    log_output("Select an instance to continue:", "choice")
     for index, instance_id in enumerate(instance_dict):
         instance_name = instance_dict[instance_id]["Name"]
         private_ip = instance_dict[instance_id]["IPAddress"]
@@ -359,7 +357,7 @@ def query_ebs_snapshots(ec2_client, instance_dict, max_results=5):
         if len(instance_dict[instance_id]["BlockDevs"]) == 0:
             separator()
             ec2_client.close()
-            sys.exit("Error: No valid snapshots found")
+            log_output("No valid snapshots found", "error")
 
     return instance_dict
 
