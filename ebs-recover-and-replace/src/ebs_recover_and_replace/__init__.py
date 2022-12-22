@@ -22,7 +22,7 @@ class colours:
     end     = "\033[0m"
 
 
-def log_output(message="", level="info", indent=0):
+def log_output(message="", level="info", indent=4):
     if level == "error":
         print(f"{colours.dred}{level.capitalize()}:{colours.end} {message}")
         sys.exit(1)
@@ -33,11 +33,11 @@ def log_output(message="", level="info", indent=0):
         if level == "warn":
             prefix = f"{colours.byellow}{level.capitalize()}:{colours.end} "
 
-        if level == "indent":
+        if level == "item":
             prefix = f"{'':<{indent}}"
         
         if level == "choice":
-            prefix = f"{colours.bgreen}->{colours.end} "
+            prefix = f"{colours.bgreen}→{colours.end} "
 
     print(prefix + message)
 
@@ -70,9 +70,9 @@ def create_ec2_client(awsprofile, awsregion):
     """
     Connects to the AWS API and returns an EC2 client object
     """
-    log_output("Connecting to AWS...", "info")
-    log_output("AWS Profile: [{}]".format(awsprofile), "info")
-    log_output("AWS Region:  [{}]".format(awsregion), "info")
+    log_output("Connecting to AWS...")
+    log_output("AWS Profile: [{}]".format(awsprofile))
+    log_output("AWS Region:  [{}]".format(awsregion))
     try:
         # Connect to EC2
         session = boto3.Session(profile_name=awsprofile)
@@ -95,8 +95,8 @@ def query_ec2_instances(ec2_client, searchtags, instanceid=None):
     formed from the provided tag names and values.
     Can optionally be provided an instance ID to further refine the results.
     """
-    log_output("Querying instances...", "info")
-    log_output("Search Tags: [{}]".format(searchtags), "info")
+    log_output("Querying instances...")
+    log_output("Search Tags: [{}]".format(searchtags))
     filters_list = []
     for tagname, tagvalue in searchtags.items():
         filters_list.append({"Name": "tag:" + tagname, "Values": [tagvalue]})
@@ -155,16 +155,16 @@ def get_instance_choice(instance_dict):
     If more than 1 instance is returned on a query, the user must specify on which
     instance the operations are to take place on.
     """
-    log_output(f"Instances Found: {len(Counter(instance_dict))}", "info")
+    log_output(f"Instances Found: {len(Counter(instance_dict))}")
     log_output("Select an instance to continue:", "choice")
     for index, instance_id in enumerate(instance_dict):
         instance_name = instance_dict[instance_id]["Name"]
         private_ip = instance_dict[instance_id]["IPAddress"]
-        log_output(f"[{index}] {instance_id}, {instance_name} ({private_ip})", "indent", 4)
+        log_output(f"[{index}] {instance_id}, {instance_name} ({private_ip})", "item")
 
     print()
     while True:
-        selection_raw = input("Instance Selection:".ljust(20))
+        selection_raw = input("Instance Selection: ")
         try:
             selection_int = int(selection_raw)
         except ValueError:
@@ -193,20 +193,12 @@ def get_volume_choice(instance_dict):
     """
 
     for index, instance_id in enumerate(instance_dict):
-        print("Instance ID:".ljust(20) + "{}".format(instance_id))
-        print(
-            "Instance Name:".ljust(20) + "{}".format(instance_dict[instance_id]["Name"])
-        )
-        print(
-            "IP Address:".ljust(20)
-            + "{}".format(instance_dict[instance_id]["IPAddress"])
-        )
-        print(
-            "Block Devices:".ljust(20)
-            + "{}\n".format(len(instance_dict[instance_id]["BlockDevs"]))
-        )
+        log_output(f"Instance ID:   {instance_id}")
+        log_output(f"Instance Name: {instance_dict[instance_id]['Name']}")
+        log_output(f"IP Address:    {instance_dict[instance_id]['IPAddress']}")
+        log_output(f"Block Devices: {len(instance_dict[instance_id]['BlockDevs'])}")
 
-        print("Select an option to continue:")
+        log_output("Select an option to continue:", "choice")
         for index, device in enumerate(instance_dict[instance_id]["BlockDevs"]):
             volume_id = device["VolumeId"]
             device_node = device["DeviceName"]
@@ -214,30 +206,22 @@ def get_volume_choice(instance_dict):
                 device_message = "** ROOT **"
             else:
                 device_message = ""
-            print(
-                "    [{}] {} ({}) {}".format(
-                    index, volume_id, device_node, device_message
-                )
-            )
+            log_output(f"[{index}] {volume_id} ({device_node}) {device_message}", "item")
 
-        print("    [A] All block devices")
+        log_output("[A] All block devices", "item")
 
         print()
         while True:
             selection_raw = input("Device Selection: ".ljust(20))
 
             if selection_raw == "A" or selection_raw == "a":
-                print("All block devices selected")
+                log_output("All block devices selected")
                 return instance_dict
             else:
                 try:
                     selection_int = int(selection_raw)
                 except ValueError:
-                    print(
-                        "Selection must be a number from 0 to {} or A for all block devices".format(
-                            len(instance_dict[instance_id]["BlockDevs"]) - 1
-                        )
-                    )
+                    log_output(f"Selection must be a number from 0 to {len(instance_dict[instance_id]['BlockDevs']) - 1} or A for all block devices", "warn")
                     continue
 
                 if not (
@@ -245,11 +229,7 @@ def get_volume_choice(instance_dict):
                     <= selection_int
                     <= len(instance_dict[instance_id]["BlockDevs"]) - 1
                 ):
-                    print(
-                        "Selection must be a number from 0 to {} or A for all block devices".format(
-                            len(instance_dict[instance_id]["BlockDevs"]) - 1
-                        )
-                    )
+                    log_output(f"Selection must be a number from 0 to {len(instance_dict[instance_id]['BlockDevs']) - 1} or A for all block devices", "warn")
                     continue
                 else:
                     for index, device in enumerate(
@@ -266,7 +246,7 @@ def get_volume_data(ec2_client, instance_dict):
     Returns additional data about each chosen volume, such as encryption status
     availability zone and capacity
     """
-    print("Updating volume data...")
+    log_output("Updating volume data...")
 
     for instance_id in instance_dict:
         for block_index, block_device in enumerate(
@@ -274,9 +254,7 @@ def get_volume_data(ec2_client, instance_dict):
         ):
             device_name = block_device["DeviceName"]
             volume_id = block_device["VolumeId"]
-            print(
-                "Querying Volume:".ljust(20) + "{} ({})".format(volume_id, device_name)
-            )
+            log_output(f"Querying Volume: {volume_id} ({device_name})")
             volume_data = ec2_client.describe_volumes(VolumeIds=[volume_id])
 
             for volume in volume_data["Volumes"]:
@@ -306,7 +284,7 @@ def query_ebs_snapshots(ec2_client, instance_dict, max_results=5):
     Queries for any EBS snapshots based on a provided EBS volume ID. If any are
     found, the `max_results` most recent snapshots are returned.
     """
-    print("Querying EBS snapshots...")
+    log_output("Querying EBS snapshots...")
 
     omit_indexes = []
     for instance_id in instance_dict:
@@ -315,7 +293,7 @@ def query_ebs_snapshots(ec2_client, instance_dict, max_results=5):
         ):
             device_name = block_device["DeviceName"]
             volume_id = block_device["VolumeId"]
-            print("Source Volume:".ljust(20) + "{} ({})".format(volume_id, device_name))
+            log_output(f"Source Volume: {volume_id} ({device_name})")
             snapshot_data = ec2_client.describe_snapshots(
                 Filters=[{"Name": "volume-id", "Values": [volume_id]}],
                 OwnerIds=["self"],
@@ -323,17 +301,11 @@ def query_ebs_snapshots(ec2_client, instance_dict, max_results=5):
             )
 
             if len(snapshot_data["Snapshots"]) == 0:
-                print(
-                    "Snapshots Found:".ljust(20)
-                    + "{} - Omitting Volume".format(len(snapshot_data["Snapshots"]))
-                )
+                log_output(f"Snapshots Found: {len(snapshot_data['Snapshots'])} - Omitting Volume")
                 omit_indexes.append(block_index)
 
             if len(snapshot_data["Snapshots"]) > 0:
-                print(
-                    "Snapshots Found:".ljust(20)
-                    + "{}".format(len(snapshot_data["Snapshots"]))
-                )
+                log_output(f"Snapshots Found: {len(snapshot_data['Snapshots'])}")
                 instance_dict[instance_id]["BlockDevs"][block_index].update(
                     {"Snapshots": len(snapshot_data["Snapshots"])}
                 )
@@ -375,21 +347,15 @@ def get_snapshot_choice(instance_dict):
         ):
             device_name = block_device["DeviceName"]
             volume_id = block_device["VolumeId"]
-            print()
-            print("Source Volume:".ljust(20) + "{} ({})".format(volume_id, device_name))
-            print()
-            print("Select a snapshot to continue:")
+            log_output(f"Source Volume: {volume_id} ({device_name})")
+            log_output("Select a snapshot to continue:", "choice")
 
             for snapshot_index, snapshot_data in enumerate(
                 block_device["SnapshotData"]
             ):
                 snapshot_id = snapshot_data["SnapshotId"]
                 snapshot_starttime = snapshot_data["StartTime"]
-                print(
-                    "    [{}] {} ({})".format(
-                        snapshot_index, snapshot_id, snapshot_starttime
-                    )
-                )
+                log_output(f"[{snapshot_index}] {snapshot_id} ({snapshot_starttime})", "item")
 
             omit_indexes = []
             print()
@@ -467,7 +433,7 @@ NOTE: The original volumes will continue to exist. No resources will be removed.
                 instance_dict[instance_id].update({"SwitchVols": False})
                 break
             else:
-                print('Please answer with "yes" or "no"')
+                log_output('Please answer with "yes" or "no"', "warn")
                 continue
 
     return instance_dict
@@ -480,14 +446,9 @@ def get_user_confirmation(instance_dict):
     """
 
     for instance_id in instance_dict:
-        print("Instance ID:".ljust(20) + "{}".format(instance_id))
-        print(
-            "Instance Name:".ljust(20) + "{}".format(instance_dict[instance_id]["Name"])
-        )
-        print(
-            "IP Address:".ljust(20)
-            + "{}".format(instance_dict[instance_id]["IPAddress"])
-        )
+        log_output(f"Instance ID:   {instance_id}")
+        log_output(f"Instance Name: {instance_dict[instance_id]['Name']}")
+        log_output(f"IP Address:    {instance_dict[instance_id]['IPAddress']}")
         print()
         print(
             "Volume ID".ljust(25)
