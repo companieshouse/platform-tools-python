@@ -11,13 +11,9 @@ from collections import Counter
 
 class colours:
     dblue   = "\033[0;34m"
-    dyellow = "\033[0;33m"
-    dgreen  = "\033[0;32m"
     dred    = "\033[0;31m"
-    bblue   = "\033[1;34m"
     byellow = "\033[1;33m"
     bgreen  = "\033[1;32m"
-    bred    = "\033[1;31m"
     bold    = "\033[1m"
     end     = "\033[0m"
 
