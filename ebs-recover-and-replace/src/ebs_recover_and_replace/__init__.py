@@ -23,6 +23,8 @@ class colours:
 
 
 def log_output(message="", level="info", indent=4):
+    prefix = ""
+    suffix = ""
     if level == "error":
         print(f"{colours.dred}{level.capitalize()}:{colours.end} {message}")
         sys.exit(1)
@@ -38,8 +40,12 @@ def log_output(message="", level="info", indent=4):
         
         if level == "choice":
             prefix = f"{colours.bgreen}→{colours.end} "
+        
+        if level == "header":
+            prefix = f"{colours.bold}"
+            suffix = f"{colours.end}"
 
-    print(prefix + message)
+    print(prefix + message + suffix)
 
 
 def separator(width=72):
@@ -212,7 +218,7 @@ def get_volume_choice(instance_dict):
 
         print()
         while True:
-            selection_raw = input("Device Selection: ".ljust(20))
+            selection_raw = input("Device Selection: ")
 
             if selection_raw == "A" or selection_raw == "a":
                 log_output("All block devices selected")
@@ -360,27 +366,18 @@ def get_snapshot_choice(instance_dict):
             omit_indexes = []
             print()
             while True:
-                selection_raw = input("Snapshot Selection: ".ljust(20))
+                selection_raw = input("Snapshot Selection: ")
 
                 try:
                     selection_int = int(selection_raw)
                 except ValueError:
-                    print(
-                        "Selection must be a number from 0 to {}".format(
-                            len(block_device["SnapshotData"]) - 1
-                        )
-                    )
+                    log_output(f"Selection must be a number from 0 to {len(block_device['SnapshotData']) - 1}", "warn")
                     continue
 
                 if not (0 <= selection_int <= len(block_device["SnapshotData"]) - 1):
-                    print(
-                        "Selection must be a number from 0 to {}".format(
-                            len(block_device["SnapshotData"]) - 1
-                        )
-                    )
+                    log_output(f"Selection must be a number from 0 to {len(block_device['SnapshotData']) - 1}", "warn")
                     continue
                 else:
-                    print("Snapshot {} selected".format(selection_int))
                     for snapshot_index, snapshot_data in enumerate(
                         block_device["SnapshotData"]
                     ):
@@ -408,9 +405,8 @@ def get_reattach_choice(instance_dict):
     """
 
     for instance_id in instance_dict:
-        print(
-            """
-Would you like the restored volumes to be automatically switched with the existing
+        log_output(
+            """Would you like the restored volumes to be automatically switched with the existing
 volumes on the target instance?
 
 If answering "yes", the target instance will be shut-down and the existing volumes
@@ -418,13 +414,12 @@ detached. The volumes restored from snapshot will then be attached in their plac
 
 If answering "no", new volumes will be created from the selected snapshots only.
 
-NOTE: The original volumes will continue to exist. No resources will be removed.
-    """
+NOTE: The original volumes will continue to exist. No resources will be removed.""", "choice"
         )
 
         print()
         while True:
-            answer_raw = input("Switch Volumes:".ljust(20))
+            answer_raw = input("Switch Volumes: ")
 
             if answer_raw.lower() == "yes":
                 instance_dict[instance_id].update({"SwitchVols": True})
@@ -450,11 +445,11 @@ def get_user_confirmation(instance_dict):
         log_output(f"Instance Name: {instance_dict[instance_id]['Name']}")
         log_output(f"IP Address:    {instance_dict[instance_id]['IPAddress']}")
         print()
-        print(
+        log_output(
             "Volume ID".ljust(25)
             + "Device Node".ljust(15)
             + "Snapshot ID".ljust(25)
-            + "Snapshot Date"
+            + "Snapshot Date", "header"
         )
         for block_device in instance_dict[instance_id]["BlockDevs"]:
             print(
@@ -465,21 +460,18 @@ def get_user_confirmation(instance_dict):
             )
 
         print()
-        print(
-            "Switch Volumes:".ljust(20)
-            + "{}".format(instance_dict[instance_id]["SwitchVols"])
-        )
+        log_output(f"Switch Volumes: {instance_dict[instance_id]['SwitchVols']}")
         print()
-        print("Proceeed with the chosen options?")
+        log_output("Proceeed with the chosen options?", "choice")
         print()
         while True:
-            answer_raw = input("Proceed:".ljust(20))
+            answer_raw = input("Proceed: ")
             if answer_raw.lower() == "yes":
                 return True
             elif answer_raw.lower() == "no":
                 return False
             else:
-                print('Please answer with "yes" or "no"')
+                log_output('Please answer with "yes" or "no"', "warn")
                 continue
 
 
@@ -502,9 +494,7 @@ def restore_ebs_volume(
     for tagname, tagvalue in searchtags_dict.items():
         tags_list.append({"Key": tagname, "Value": tagvalue})
 
-    print(
-        "Initiating restore from {} for {}... ".format(snapshot_id, device_name),
-    )
+    log_output(f"Initiating restore from {snapshot_id} for {device_name}...")
     if block_device["Encrypted"]:
         response = ec2_client.create_volume(
             AvailabilityZone=block_device["AvailabilityZone"],
@@ -527,9 +517,7 @@ def restore_ebs_volume(
 
     validate_response(response)
     new_volume_id = response["VolumeId"]
-    print(
-        "Waiting for {} to become ready... ".format(new_volume_id),
-    )
+    log_output(f"Waiting for {new_volume_id} to become ready...")
     new_volume_waiter = ec2_client.get_waiter("volume_available")
 
     try:
@@ -544,13 +532,9 @@ def restore_ebs_volume(
 
     except botocore.exceptions.WaiterError as waiterr:
         if "Max attempts exceeded" in waiterr.message:
-            print(
-                "Volume {} failed to become ready in {} seconds".format(
-                    new_volume_id, wait_delay * wait_attempts
-                )
-            )
+            log_output(f"Volume {new_volume_id} failed to become ready in {wait_delay * wait_attempts} seconds", "error")
         else:
-            print(waiterr.message)
+            log_output(waiterr.message, "error")
 
 
 def toggle_ec2_state(ec2_client, instance_id, state=1, wait_delay=15, wait_attempts=40):
@@ -560,15 +544,11 @@ def toggle_ec2_state(ec2_client, instance_id, state=1, wait_delay=15, wait_attem
     """
     print()
     if state == 1:
-        print(
-            "Triggering start of instance {}... ".format(instance_id),
-        )
+        log_output(f"Triggering start of instance {instance_id}...")
         response = ec2_client.start_instances(InstanceIds=[instance_id])
 
         validate_response(response)
-        print(
-            "Waiting for instance {} to start... ".format(instance_id),
-        )
+        log_output(f"Waiting for instance {instance_id} to start... ")
         running_waiter = ec2_client.get_waiter("instance_running")
 
         try:
@@ -580,24 +560,16 @@ def toggle_ec2_state(ec2_client, instance_id, state=1, wait_delay=15, wait_attem
         except botocore.exceptions.WaiterError as waiterr:
             print()
             if "Max attempts exceeded" in waiterr.message:
-                print(
-                    "Instance {} failed to start in {} seconds".format(
-                        instance_id, wait_delay * wait_attempts
-                    )
-                )
+                log_output(f"Instance {instance_id} failed to start in {wait_delay * wait_attempts} seconds", "error")
             else:
-                print(waiterr.message)
+                log_output(waiterr.message, "error")
 
     else:
-        print(
-            "Triggering stop of instance {}... ".format(instance_id), end="", flush=True
-        )
+        log_output(f"Triggering stop of instance {instance_id}...")
         response = ec2_client.stop_instances(InstanceIds=[instance_id])
 
         validate_response(response)
-        print(
-            "Waiting for instance {} to stop... ".format(instance_id),
-        )
+        log_output(f"Waiting for instance {instance_id} to stop...")
         stop_waiter = ec2_client.get_waiter("instance_stopped")
 
         try:
@@ -609,13 +581,9 @@ def toggle_ec2_state(ec2_client, instance_id, state=1, wait_delay=15, wait_attem
         except botocore.exceptions.WaiterError as waiterr:
             print()
             if "Max attempts exceeded" in waiterr.message:
-                print(
-                    "Stopping instance {} failed to complete in {} seconds".format(
-                        instance_id, wait_delay * wait_attempts
-                    )
-                )
+                log_output(f"Stopping instance {instance_id} failed to complete in {wait_delay * wait_attempts} seconds", "error")
             else:
-                print(waiterr.message)
+                log_output(waiterr.message, "error")
 
 
 def detach_ebs_volume(
@@ -626,17 +594,13 @@ def detach_ebs_volume(
     instance ID.
     """
     print()
-    print(
-        "Detaching volume: {} ({})... ".format(volume_id, device_name),
-    )
+    log_output(f"Detaching volume: {volume_id} ({device_name})...")
     response = ec2_client.detach_volume(
         Device=device_name, InstanceId=instance_id, VolumeId=volume_id
     )
 
     validate_response(response)
-    print(
-        "Waiting for volume {} to detach... ".format(volume_id), end="", flush=True
-    )
+    log_output(f"Waiting for volume {volume_id} to detach... ")
     available_waiter = ec2_client.get_waiter("volume_available")
 
     try:
@@ -649,13 +613,9 @@ def detach_ebs_volume(
     except botocore.exceptions.WaiterError as waiterr:
         print()
         if "Max attempts exceeded" in waiterr.message:
-            print(
-                "Volume {} failed to detach in {} seconds".format(
-                    volume_id, wait_delay * wait_attempts
-                )
-            )
+            log_output(f"Volume {volume_id} failed to detach in {wait_delay * wait_attempts} seconds", "error")
         else:
-            print(waiterr.message)
+            log_output(waiterr.message, "error")
 
 
 def attach_ebs_volume(
@@ -666,17 +626,13 @@ def attach_ebs_volume(
     instance ID.
     """
     print()
-    print(
-        "Attaching volume: {} ({})... ".format(new_volume_id, device_name),
-    )
+    log_output(f"Attaching volume: {new_volume_id} ({device_name})...")
     response = ec2_client.attach_volume(
         Device=device_name, InstanceId=instance_id, VolumeId=new_volume_id
     )
 
     validate_response(response)
-    print(
-        "Waiting for volume {} to detach... ".format(new_volume_id),
-    )
+    log_output(f"Waiting for volume {new_volume_id} to detach...")
     in_use_waiter = ec2_client.get_waiter("volume_in_use")
 
     try:
@@ -689,13 +645,9 @@ def attach_ebs_volume(
     except botocore.exceptions.WaiterError as waiterr:
         print()
         if "Max attempts exceeded" in waiterr.message:
-            print(
-                "Volume {} failed to attach in {} seconds".format(
-                    new_volume_id, wait_delay * wait_attempts
-                )
-            )
+            log_output(f"Volume {new_volume_id} failed to attach in {wait_delay * wait_attempts} seconds", "error")
         else:
-            print(waiterr.message)
+            log_output(waiterr.message, "error")
 
     return True
 
@@ -707,7 +659,7 @@ def manage_restore_process(ec2_client, instance_dict, searchtags_dict):
     """
     print()
     for instance_id in instance_dict:
-        print("Starting volume restore process for {}".format(instance_id))
+        log_output(f"Starting volume restore process for {instance_id}")
         separator()
         for block_device in instance_dict[instance_id]["BlockDevs"]:
             new_volume_id = restore_ebs_volume(
@@ -726,7 +678,7 @@ def manage_restore_process(ec2_client, instance_dict, searchtags_dict):
             toggle_ec2_state(ec2_client, instance_id, 1)
 
     separator()
-    print("Restore process completed.")
+    log_output("Restore process completed")
 
 
 def seconds_to_dhms(total_seconds):
@@ -744,23 +696,23 @@ def seconds_to_dhms(total_seconds):
         else:
             label = "days"
 
-        output_string += "{} {}, ".format(days, label)
+        output_string += f"{days} {label}, "
 
     if hours > 0:
         if hours == 1:
             label = "hour"
         else:
             label = "hours"
-        output_string += "{} {}, ".format(hours, label)
+        output_string += f"{hours} {label}, "
 
     if minutes > 0:
         if minutes == 1:
             label = "minute"
         else:
             label = "minutes"
-        output_string += "{} {}, ".format(minutes, label)
+        output_string += f"{minutes} {label}, "
 
-    output_string += "{} seconds ago".format(seconds)
+    output_string += f"{seconds} seconds ago"
     return output_string
 
 
@@ -770,7 +722,7 @@ def save_plan(searchtags_dict, instance_dict, save_file):
     as a plan to be loaded and executed at a later date
     """
     print()
-    print("Preparing recovery plan...")
+    log_output("Preparing recovery plan...")
 
     output_dict = {}
     output_dict.update(
@@ -786,18 +738,15 @@ def save_plan(searchtags_dict, instance_dict, save_file):
     )
 
     try:
-        print("Saving plan to file: {}".format(save_file))
+        log_output(f"Saving plan to file: {save_file}")
         with open(save_file, "w") as f:
             f.write(json.dumps(output_dict))
 
         f.close()
-        print()
-        print("Plan saved successfully")
+        log_output("Plan saved successfully")
 
     except OSError as err:
-        sys.exit(err)
-    except FileExistsError as err:
-        sys.exit(err)
+        log_output(err, "error")
 
 
 def load_plan(load_file):
@@ -805,37 +754,33 @@ def load_plan(load_file):
     Load a previously-saved JSON-formatted plan file and validate
     the data within is consistent
     """
-    print()
-    print("Loading recovery plan...")
+    log_output("Loading recovery plan...")
 
     input_dict = {}
 
     try:
-        print("Reading plan from file: {}".format(load_file))
+        log_output(f"Reading plan from file: {load_file}")
         with open(load_file, "r") as f:
             input_dict = json.load(f)
 
         f.close()
-        print("Plan loaded successfully")
+        log_output("Plan loaded successfully")
 
     except OSError as err:
-        sys.exit(err)
-    except FileExistsError as err:
-        sys.exit(err)
+        log_output(err, "error")
 
-    print()
-    print("Validating plan...")
+    log_output("Validating plan...")
     if type(input_dict) is not dict:
-        sys.exit("Error: Loaded plan is not a valid data structure")
+        log_output("Loaded plan is not a valid data structure", "error")
 
     if "metadata" not in input_dict or "plan" not in input_dict:
-        sys.exit("Error: Invalid plan. Expected structure elements are missing")
+        log_output("Invalid plan. Expected structure elements are missing", "error")
 
     if (
         "searchtags_dict" not in input_dict["plan"]
         or "instance_dict" not in input_dict["plan"]
     ):
-        sys.exit("Error: Invalid plan. Expected plan elements are missing")
+        log_output("Invalid plan. Expected plan elements are missing", "error")
 
     metadata_checksum = input_dict["metadata"]["checksum"]
     plan_checksum = hashlib.md5(
@@ -844,12 +789,11 @@ def load_plan(load_file):
         )
     ).hexdigest()
     if metadata_checksum != plan_checksum:
-        sys.exit("Error: Plan checksum mismatch. Has the plan been modified?")
+        log_output("Plan checksum mismatch. Has the plan been modified?", "error")
 
-    print("Plan validated successfully")
-    print()
+    log_output("Plan validated successfully")
     plan_age_seconds = int(time.time()) - input_dict["metadata"]["timestamp"]
-    print("Plan created: {}".format(seconds_to_dhms(plan_age_seconds)))
+    log_output(f"Plan created: {seconds_to_dhms(plan_age_seconds)}")
     return input_dict["plan"]["searchtags_dict"], input_dict["plan"]["instance_dict"]
 
 
@@ -858,55 +802,39 @@ def verify_instance(ec2_client, plan_instance_id, plan_instance_metadata):
     Verifies that the provided Instance exists in AWS
     and that the provided instance data matches
     """
-
-    print(
-        "Checking Instance ID: {}... ".format(plan_instance_id),
-    )
+    log_output(f"Checking Instance ID: {plan_instance_id}...")
 
     try:
         response = ec2_client.describe_instances(InstanceIds=[plan_instance_id])
 
     except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
-        sys.exit(ssotokenerr)
+        log_output(ssotokenerr, "error")
 
     except botocore.exceptions.ProfileNotFound as profileerr:
-        sys.exit(profileerr)
+        log_output(profileerr, "error")
 
     validate_response(response)
     for reservation in response["Reservations"]:
         if len(reservation["Instances"]) == 1:
             for instance in reservation["Instances"]:
-                print("    Verifying Instance Name... ")
+                log_output("Verifying Instance Name... ", "item")
                 instance_name = ""
                 for tags in instance["Tags"]:
                     if tags["Key"] == "Name":
                         instance_name = tags["Value"]
 
                 if plan_instance_metadata["Name"] != instance_name:
-                    sys.exit(
-                        "Error: Instance name does not match\nPlan: {}, Actual: {}".format(
-                            plan_instance_metadata["Name"], instance_name
-                        )
-                    )
+                    log_output(f"Instance name does not match. Plan: {plan_instance_metadata['Name']}, Actual: {instance_name}", "error")
 
-                print("    Verifying Instance IP Address... ")
+                log_output("Verifying Instance IP Address...", "item")
                 if (
                     plan_instance_metadata["IPAddress"]
                     != instance["PrivateIpAddress"]
                 ):
-                    sys.exit(
-                        "Error: Instance IP Address does not match\nPlan: {}, Actual: {}".format(
-                            plan_instance_metadata["IPAddress"],
-                            instance["PrivateIpAddress"],
-                        )
-                    )
+                    log_output(f"Instance IP Address does not match. Plan: {plan_instance_metadata['IPAddress']}, Actual: {instance['PrivateIpAddress']}", "error")
 
         else:
-            sys.exit(
-                "Error: The instance with Instance ID {} could not be found".format(
-                    plan_instance_id
-                )
-            )
+            log_output(f"The instance with Instance ID {plan_instance_id} could not be found", "error")
 
 
 def verify_volume(ec2_client, plan_volume_id, plan_volume_metadata):
@@ -914,50 +842,33 @@ def verify_volume(ec2_client, plan_volume_id, plan_volume_metadata):
     Verifies that the provided Volume exists in AWS
     and that the provided volume data matches
     """
-
-    print("Checking Volume ID: {}... ".format(plan_volume_id))
+    log_output(f"Checking Volume ID: {plan_volume_id}...")
 
     try:
         response = ec2_client.describe_volumes(VolumeIds=[plan_volume_id])
 
     except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
-        sys.exit(ssotokenerr)
+        log_output(ssotokenerr, "error")
 
     except botocore.exceptions.ProfileNotFound as profileerr:
-        sys.exit(profileerr)
+        log_output(profileerr, "error")
 
     validate_response(response)
     if len(response["Volumes"]) == 1:
         for volume in response["Volumes"]:
             for key in plan_volume_metadata.keys():
-                print("    Verifying {}... ".format(key))
+                log_output(f"Verifying {key}...", "item")
                 if key == "DeviceName":
                     if (
                         plan_volume_metadata[key]
                         != volume["Attachments"][0]["Device"]
                     ):
-                        sys.exit(
-                            "Error: {} does not match\nPlan: {}, Actual: {}".format(
-                                key,
-                                plan_volume_metadata[key],
-                                volume["Attachments"][0]["Device"],
-                            )
-                        )
+                        log_output(f"{key} does not match. Plan: {plan_volume_metadata[key]}, Actual: {volume['Attachments'][0]['Device']}", "error")
                 elif plan_volume_metadata[key] != volume[key]:
-                    sys.exit(
-                        "Error: {} does not match\nPlan: {}, Actual: {}".format(
-                            key,
-                            plan_volume_metadata[key],
-                            volume[key],
-                        )
-                    )
+                    log_output(f"{key} does not match. Plan: {plan_volume_metadata[key]}, Actual: {volume[key]}", "error")
 
     else:
-        sys.exit(
-            "Error: The volume with Volume ID {} could not be found".format(
-                plan_volume_id
-            )
-        )
+        log_output(f"The volume with Volume ID {plan_volume_id} could not be found", "error")
 
 
 def verify_snapshot(ec2_client, plan_snapshot_id, plan_snapshot_metadata):
@@ -965,17 +876,16 @@ def verify_snapshot(ec2_client, plan_snapshot_id, plan_snapshot_metadata):
     Verifies that the provided Snapshot exists in AWS
     and that the provided snapshot data matches
     """
-
-    print("Checking Snapshot ID: {}... ".format(plan_snapshot_id))
+    log_output(f"Checking Snapshot ID: {plan_snapshot_id}...")
 
     try:
         response = ec2_client.describe_snapshots(SnapshotIds=[plan_snapshot_id])
 
     except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
-        sys.exit(ssotokenerr)
+        log_output(ssotokenerr, "error")
 
     except botocore.exceptions.ProfileNotFound as profileerr:
-        sys.exit(profileerr)
+        log_output(profileerr, "error")
 
     validate_response(response)
     if len(response["Snapshots"]) == 1:
@@ -985,29 +895,13 @@ def verify_snapshot(ec2_client, plan_snapshot_id, plan_snapshot_metadata):
                 if key == "StartTime":
                     snapshot_starttime = "{}".format(snapshot["StartTime"])
                     if plan_snapshot_metadata[key] != snapshot_starttime:
-                        sys.exit(
-                            "Error: {} does not match\nPlan: {}, Actual: {}".format(
-                                key,
-                                plan_snapshot_metadata[key],
-                                snapshot_starttime,
-                            )
-                        )
+                        log_output(f"{key} does not match. Plan: {plan_snapshot_metadata[key]}, Actual: {snapshot_starttime}", "error")
 
                 elif plan_snapshot_metadata[key] != snapshot[key]:
-                    sys.exit(
-                        "Error: {} does not match\nPlan: {}, Actual: {}".format(
-                            key,
-                            plan_snapshot_metadata[key],
-                            snapshot[key],
-                        )
-                    )
+                    log_output(f"{key} does not match. Plan: {plan_snapshot_metadata[key]}, Actual: {snapshot[key]}", "error")
 
     else:
-        sys.exit(
-            "Error: The snapshot with Snapshot ID {} could not be found".format(
-                plan_snapshot_id
-            )
-        )
+        log_output(f"The snapshot with Snapshot ID {plan_snapshot_id} could not be found", "error")
 
 
 def revalidate_loaded_plan(ec2_client, instance_dict):
@@ -1015,8 +909,7 @@ def revalidate_loaded_plan(ec2_client, instance_dict):
     Re-validates the provided instance_dict to ensure the supplied
     AWS resource IDs are valid and still exist
     """
-    print()
-    print("Re-validating resource IDs...")
+    log_output("Re-validating resource IDs...")
 
     for instance_id in instance_dict:
         instance_metadata = {
@@ -1038,15 +931,12 @@ def revalidate_loaded_plan(ec2_client, instance_dict):
 
             if block_dev["Encrypted"]:
                 volume_metadata.update({"KmsKeyId": block_dev["KmsKeyId"]})
-
             verify_volume(ec2_client, volume_id, volume_metadata)
             print()
 
             snapshot_id = block_dev["SnapshotData"][0]["SnapshotId"]
             snapshot_metadata = {"StartTime": block_dev["SnapshotData"][0]["StartTime"]}
-
             verify_snapshot(ec2_client, snapshot_id, snapshot_metadata)
-            print()
 
 
 def main():
