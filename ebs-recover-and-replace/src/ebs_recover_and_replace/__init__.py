@@ -66,9 +66,7 @@ def process_searchtags(searchtags):
 def validate_response(response):
     if response["ResponseMetadata"]["HTTPStatusCode"] != 200:
         format_output(
-            "Received {} error from AWS".format(
-                response["ResponseMetadata"]["HTTPStatusCode"]
-            ),
+            f"Received {response['ResponseMetadata']['HTTPStatusCode']} error from AWS",
             "error",
         )
 
@@ -78,8 +76,8 @@ def create_ec2_client(awsprofile, awsregion):
     Connects to the AWS API and returns an EC2 client object
     """
     format_output("Connecting to AWS...")
-    format_output("AWS Profile: [{}]".format(awsprofile))
-    format_output("AWS Region:  [{}]".format(awsregion))
+    format_output(f"AWS Profile: [{awsprofile}]")
+    format_output(f"AWS Region:  [{awsregion}]")
     try:
         # Connect to EC2
         session = boto3.Session(profile_name=awsprofile)
@@ -103,7 +101,7 @@ def query_ec2_instances(ec2_client, searchtags, instanceid=None):
     Can optionally be provided an instance ID to further refine the results.
     """
     format_output("Querying instances...")
-    format_output("Search Tags: [{}]".format(searchtags))
+    format_output(f"Search Tags: [{searchtags}]")
     filters_list = []
     for tagname, tagvalue in searchtags.items():
         filters_list.append({"Name": "tag:" + tagname, "Values": [tagvalue]})
@@ -339,7 +337,7 @@ def query_ebs_snapshots(ec2_client, instance_dict, max_results=5):
                 for snapshot in snapshot_data["Snapshots"]:
                     if snapshot["VolumeId"] == volume_id:
                         snapshot_id = snapshot["SnapshotId"]
-                        snapshot_starttime = "{}".format(snapshot["StartTime"])
+                        snapshot_starttime = f"{snapshot['StartTime']}"
                         snapshot_list.append(
                             {"SnapshotId": snapshot_id, "StartTime": snapshot_starttime}
                         )
@@ -946,9 +944,9 @@ def verify_snapshot(ec2_client, plan_snapshot_id, plan_snapshot_metadata):
     if len(response["Snapshots"]) == 1:
         for snapshot in response["Snapshots"]:
             for key in plan_snapshot_metadata.keys():
-                print("    Verifying {}... ".format(key))
+                format_output(f"Verifying {key}...", "item")
                 if key == "StartTime":
-                    snapshot_starttime = "{}".format(snapshot["StartTime"])
+                    snapshot_starttime = f"{snapshot['StartTime']}"
                     if plan_snapshot_metadata[key] != snapshot_starttime:
                         format_output(
                             f"{key} does not match. Plan: {plan_snapshot_metadata[key]}, Actual: {snapshot_starttime}",
