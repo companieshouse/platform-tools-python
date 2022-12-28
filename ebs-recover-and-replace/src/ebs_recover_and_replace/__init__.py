@@ -19,26 +19,26 @@ class colours:
     end = "\033[0m"
 
 
-def format_output(message="", level="info", indent=4):
+def format_output(message="", style="info", indent=4):
     prefix = ""
     suffix = ""
-    if level == "error":
-        print(f"{colours.dred}{level.capitalize()}:{colours.end} {message}")
+    if style == "error":
+        print(f"{colours.dred}{style.capitalize()}:{colours.end} {message}")
         sys.exit(1)
     else:
-        if level == "info":
-            prefix = f"{colours.dblue}{level.capitalize()}:{colours.end} "
+        if style == "info":
+            prefix = f"{colours.dblue}{style.capitalize()}:{colours.end} "
 
-        if level == "warn":
-            prefix = f"{colours.byellow}{level.capitalize()}:{colours.end} "
+        if style == "warn":
+            prefix = f"{colours.byellow}{style.capitalize()}:{colours.end} "
 
-        if level == "item":
+        if style == "item":
             prefix = f"{'':<{indent}}"
 
-        if level == "choice":
+        if style == "choice":
             prefix = f"{colours.bgreen}→{colours.end} "
 
-        if level == "header":
+        if style == "header":
             prefix = f"{colours.bold}"
             suffix = f"{colours.end}"
 
