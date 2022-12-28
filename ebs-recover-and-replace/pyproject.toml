@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ebs_recover_and_replace"
-version = "1.0.2"
+version = "1.0.3"
 authors = [
   { name="Wayne Jenkins", email="wjenkins1@companieshouse.gov.uk" },
 ]
