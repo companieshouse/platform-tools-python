@@ -9,13 +9,14 @@ import time
 
 from collections import Counter
 
+
 class colours:
-    dblue   = "\033[0;34m"
-    dred    = "\033[0;31m"
+    dblue = "\033[0;34m"
+    dred = "\033[0;31m"
     byellow = "\033[1;33m"
-    bgreen  = "\033[1;32m"
-    bold    = "\033[1m"
-    end     = "\033[0m"
+    bgreen = "\033[1;32m"
+    bold = "\033[1m"
+    end = "\033[0m"
 
 
 def format_output(message="", level="info", indent=4):
@@ -33,10 +34,10 @@ def format_output(message="", level="info", indent=4):
 
         if level == "item":
             prefix = f"{'':<{indent}}"
-        
+
         if level == "choice":
             prefix = f"{colours.bgreen}→{colours.end} "
-        
+
         if level == "header":
             prefix = f"{colours.bold}"
             suffix = f"{colours.end}"
@@ -64,9 +65,12 @@ def process_searchtags(searchtags):
 
 def validate_response(response):
     if response["ResponseMetadata"]["HTTPStatusCode"] != 200:
-        format_output("Received {} error from AWS".format(
-            response["ResponseMetadata"]["HTTPStatusCode"]
-        ), "error")
+        format_output(
+            "Received {} error from AWS".format(
+                response["ResponseMetadata"]["HTTPStatusCode"]
+            ),
+            "error",
+        )
 
 
 def create_ec2_client(awsprofile, awsregion):
@@ -163,7 +167,9 @@ def get_instance_choice(instance_dict):
     for index, instance_id in enumerate(instance_dict):
         instance_name = instance_dict[instance_id]["Name"]
         private_ip = instance_dict[instance_id]["IPAddress"]
-        format_output(f"[{index}] {instance_id}, {instance_name} ({private_ip})", "item")
+        format_output(
+            f"[{index}] {instance_id}, {instance_name} ({private_ip})", "item"
+        )
 
     print()
     while True:
@@ -171,11 +177,17 @@ def get_instance_choice(instance_dict):
         try:
             selection_int = int(selection_raw)
         except ValueError:
-            format_output(f"Selection must be a number from 0 to {len(Counter(instance_dict)) - 1}", "warn")
+            format_output(
+                f"Selection must be a number from 0 to {len(Counter(instance_dict)) - 1}",
+                "warn",
+            )
             continue
 
         if not (0 <= selection_int <= len(Counter(instance_dict)) - 1):
-            format_output(f"Selection must be a number from 0 to {len(Counter(instance_dict)) - 1}", "warn")
+            format_output(
+                f"Selection must be a number from 0 to {len(Counter(instance_dict)) - 1}",
+                "warn",
+            )
             continue
         else:
             for index, instance_id in enumerate(instance_dict):
@@ -209,7 +221,9 @@ def get_volume_choice(instance_dict):
                 device_message = "** ROOT **"
             else:
                 device_message = ""
-            format_output(f"[{index}] {volume_id} ({device_node}) {device_message}", "item")
+            format_output(
+                f"[{index}] {volume_id} ({device_node}) {device_message}", "item"
+            )
 
         format_output("[A] All block devices", "item")
 
@@ -224,7 +238,10 @@ def get_volume_choice(instance_dict):
                 try:
                     selection_int = int(selection_raw)
                 except ValueError:
-                    format_output(f"Selection must be a number from 0 to {len(instance_dict[instance_id]['BlockDevs']) - 1} or A for all block devices", "warn")
+                    format_output(
+                        f"Selection must be a number from 0 to {len(instance_dict[instance_id]['BlockDevs']) - 1} or A for all block devices",
+                        "warn",
+                    )
                     continue
 
                 if not (
@@ -232,7 +249,10 @@ def get_volume_choice(instance_dict):
                     <= selection_int
                     <= len(instance_dict[instance_id]["BlockDevs"]) - 1
                 ):
-                    format_output(f"Selection must be a number from 0 to {len(instance_dict[instance_id]['BlockDevs']) - 1} or A for all block devices", "warn")
+                    format_output(
+                        f"Selection must be a number from 0 to {len(instance_dict[instance_id]['BlockDevs']) - 1} or A for all block devices",
+                        "warn",
+                    )
                     continue
                 else:
                     for index, device in enumerate(
@@ -304,7 +324,9 @@ def query_ebs_snapshots(ec2_client, instance_dict, max_results=5):
             )
 
             if len(snapshot_data["Snapshots"]) == 0:
-                format_output(f"Snapshots Found: {len(snapshot_data['Snapshots'])} - Omitting Volume")
+                format_output(
+                    f"Snapshots Found: {len(snapshot_data['Snapshots'])} - Omitting Volume"
+                )
                 omit_indexes.append(block_index)
 
             if len(snapshot_data["Snapshots"]) > 0:
@@ -358,7 +380,9 @@ def get_snapshot_choice(instance_dict):
             ):
                 snapshot_id = snapshot_data["SnapshotId"]
                 snapshot_starttime = snapshot_data["StartTime"]
-                format_output(f"[{snapshot_index}] {snapshot_id} ({snapshot_starttime})", "item")
+                format_output(
+                    f"[{snapshot_index}] {snapshot_id} ({snapshot_starttime})", "item"
+                )
 
             omit_indexes = []
             print()
@@ -368,11 +392,17 @@ def get_snapshot_choice(instance_dict):
                 try:
                     selection_int = int(selection_raw)
                 except ValueError:
-                    format_output(f"Selection must be a number from 0 to {len(block_device['SnapshotData']) - 1}", "warn")
+                    format_output(
+                        f"Selection must be a number from 0 to {len(block_device['SnapshotData']) - 1}",
+                        "warn",
+                    )
                     continue
 
                 if not (0 <= selection_int <= len(block_device["SnapshotData"]) - 1):
-                    format_output(f"Selection must be a number from 0 to {len(block_device['SnapshotData']) - 1}", "warn")
+                    format_output(
+                        f"Selection must be a number from 0 to {len(block_device['SnapshotData']) - 1}",
+                        "warn",
+                    )
                     continue
                 else:
                     for snapshot_index, snapshot_data in enumerate(
@@ -411,7 +441,8 @@ detached. The volumes restored from snapshot will then be attached in their plac
 
 If answering "no", new volumes will be created from the selected snapshots only.
 
-NOTE: The original volumes will continue to exist. No resources will be removed.""", "choice"
+NOTE: The original volumes will continue to exist. No resources will be removed.""",
+            "choice",
         )
 
         print()
@@ -446,7 +477,8 @@ def get_user_confirmation(instance_dict):
             "Volume ID".ljust(25)
             + "Device Node".ljust(15)
             + "Snapshot ID".ljust(25)
-            + "Snapshot Date", "header"
+            + "Snapshot Date",
+            "header",
         )
         for block_device in instance_dict[instance_id]["BlockDevs"]:
             print(
@@ -529,7 +561,10 @@ def restore_ebs_volume(
 
     except botocore.exceptions.WaiterError as waiterr:
         if "Max attempts exceeded" in waiterr.message:
-            format_output(f"Volume {new_volume_id} failed to become ready in {wait_delay * wait_attempts} seconds", "error")
+            format_output(
+                f"Volume {new_volume_id} failed to become ready in {wait_delay * wait_attempts} seconds",
+                "error",
+            )
         else:
             format_output(waiterr.message, "error")
 
@@ -557,7 +592,10 @@ def toggle_ec2_state(ec2_client, instance_id, state=1, wait_delay=15, wait_attem
         except botocore.exceptions.WaiterError as waiterr:
             print()
             if "Max attempts exceeded" in waiterr.message:
-                format_output(f"Instance {instance_id} failed to start in {wait_delay * wait_attempts} seconds", "error")
+                format_output(
+                    f"Instance {instance_id} failed to start in {wait_delay * wait_attempts} seconds",
+                    "error",
+                )
             else:
                 format_output(waiterr.message, "error")
 
@@ -578,7 +616,10 @@ def toggle_ec2_state(ec2_client, instance_id, state=1, wait_delay=15, wait_attem
         except botocore.exceptions.WaiterError as waiterr:
             print()
             if "Max attempts exceeded" in waiterr.message:
-                format_output(f"Stopping instance {instance_id} failed to complete in {wait_delay * wait_attempts} seconds", "error")
+                format_output(
+                    f"Stopping instance {instance_id} failed to complete in {wait_delay * wait_attempts} seconds",
+                    "error",
+                )
             else:
                 format_output(waiterr.message, "error")
 
@@ -610,7 +651,10 @@ def detach_ebs_volume(
     except botocore.exceptions.WaiterError as waiterr:
         print()
         if "Max attempts exceeded" in waiterr.message:
-            format_output(f"Volume {volume_id} failed to detach in {wait_delay * wait_attempts} seconds", "error")
+            format_output(
+                f"Volume {volume_id} failed to detach in {wait_delay * wait_attempts} seconds",
+                "error",
+            )
         else:
             format_output(waiterr.message, "error")
 
@@ -642,7 +686,10 @@ def attach_ebs_volume(
     except botocore.exceptions.WaiterError as waiterr:
         print()
         if "Max attempts exceeded" in waiterr.message:
-            format_output(f"Volume {new_volume_id} failed to attach in {wait_delay * wait_attempts} seconds", "error")
+            format_output(
+                f"Volume {new_volume_id} failed to attach in {wait_delay * wait_attempts} seconds",
+                "error",
+            )
         else:
             format_output(waiterr.message, "error")
 
@@ -821,17 +868,23 @@ def verify_instance(ec2_client, plan_instance_id, plan_instance_metadata):
                         instance_name = tags["Value"]
 
                 if plan_instance_metadata["Name"] != instance_name:
-                    format_output(f"Instance name does not match. Plan: {plan_instance_metadata['Name']}, Actual: {instance_name}", "error")
+                    format_output(
+                        f"Instance name does not match. Plan: {plan_instance_metadata['Name']}, Actual: {instance_name}",
+                        "error",
+                    )
 
                 format_output("Verifying Instance IP Address...", "item")
-                if (
-                    plan_instance_metadata["IPAddress"]
-                    != instance["PrivateIpAddress"]
-                ):
-                    format_output(f"Instance IP Address does not match. Plan: {plan_instance_metadata['IPAddress']}, Actual: {instance['PrivateIpAddress']}", "error")
+                if plan_instance_metadata["IPAddress"] != instance["PrivateIpAddress"]:
+                    format_output(
+                        f"Instance IP Address does not match. Plan: {plan_instance_metadata['IPAddress']}, Actual: {instance['PrivateIpAddress']}",
+                        "error",
+                    )
 
         else:
-            format_output(f"The instance with Instance ID {plan_instance_id} could not be found", "error")
+            format_output(
+                f"The instance with Instance ID {plan_instance_id} could not be found",
+                "error",
+            )
 
 
 def verify_volume(ec2_client, plan_volume_id, plan_volume_metadata):
@@ -856,16 +909,21 @@ def verify_volume(ec2_client, plan_volume_id, plan_volume_metadata):
             for key in plan_volume_metadata.keys():
                 format_output(f"Verifying {key}...", "item")
                 if key == "DeviceName":
-                    if (
-                        plan_volume_metadata[key]
-                        != volume["Attachments"][0]["Device"]
-                    ):
-                        format_output(f"{key} does not match. Plan: {plan_volume_metadata[key]}, Actual: {volume['Attachments'][0]['Device']}", "error")
+                    if plan_volume_metadata[key] != volume["Attachments"][0]["Device"]:
+                        format_output(
+                            f"{key} does not match. Plan: {plan_volume_metadata[key]}, Actual: {volume['Attachments'][0]['Device']}",
+                            "error",
+                        )
                 elif plan_volume_metadata[key] != volume[key]:
-                    format_output(f"{key} does not match. Plan: {plan_volume_metadata[key]}, Actual: {volume[key]}", "error")
+                    format_output(
+                        f"{key} does not match. Plan: {plan_volume_metadata[key]}, Actual: {volume[key]}",
+                        "error",
+                    )
 
     else:
-        format_output(f"The volume with Volume ID {plan_volume_id} could not be found", "error")
+        format_output(
+            f"The volume with Volume ID {plan_volume_id} could not be found", "error"
+        )
 
 
 def verify_snapshot(ec2_client, plan_snapshot_id, plan_snapshot_metadata):
@@ -892,13 +950,22 @@ def verify_snapshot(ec2_client, plan_snapshot_id, plan_snapshot_metadata):
                 if key == "StartTime":
                     snapshot_starttime = "{}".format(snapshot["StartTime"])
                     if plan_snapshot_metadata[key] != snapshot_starttime:
-                        format_output(f"{key} does not match. Plan: {plan_snapshot_metadata[key]}, Actual: {snapshot_starttime}", "error")
+                        format_output(
+                            f"{key} does not match. Plan: {plan_snapshot_metadata[key]}, Actual: {snapshot_starttime}",
+                            "error",
+                        )
 
                 elif plan_snapshot_metadata[key] != snapshot[key]:
-                    format_output(f"{key} does not match. Plan: {plan_snapshot_metadata[key]}, Actual: {snapshot[key]}", "error")
+                    format_output(
+                        f"{key} does not match. Plan: {plan_snapshot_metadata[key]}, Actual: {snapshot[key]}",
+                        "error",
+                    )
 
     else:
-        format_output(f"The snapshot with Snapshot ID {plan_snapshot_id} could not be found", "error")
+        format_output(
+            f"The snapshot with Snapshot ID {plan_snapshot_id} could not be found",
+            "error",
+        )
 
 
 def revalidate_loaded_plan(ec2_client, instance_dict):
