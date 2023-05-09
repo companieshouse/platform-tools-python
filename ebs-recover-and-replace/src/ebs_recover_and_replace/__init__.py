@@ -24,7 +24,6 @@ def format_output(message="", style="info", indent=4):
     suffix = ""
     if style == "error":
         print(f"{colours.dred}{style.capitalize()}:{colours.end} {message}")
-        sys.exit(1)
     else:
         if style == "info":
             prefix = f"{colours.dblue}{style.capitalize()}:{colours.end} "
@@ -69,6 +68,7 @@ def validate_response(response):
             f"Received {response['ResponseMetadata']['HTTPStatusCode']} error from AWS",
             "error",
         )
+        sys.exit(1)
 
 
 def create_ec2_client(awsprofile, awsregion):
@@ -86,12 +86,15 @@ def create_ec2_client(awsprofile, awsregion):
 
     except botocore.exceptions.NoCredentialsError as nocrederr:
         format_output(nocrederr, "error")
+        sys.exit(1)
 
     except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
         format_output(ssotokenerr, "error")
+        sys.exit(1)
 
     except botocore.exceptions.ProfileNotFound as profileerr:
         format_output(profileerr, "error")
+        sys.exit(1)
 
 
 def query_ec2_instances(ec2_client, searchtags, instanceid=None):
@@ -117,9 +120,11 @@ def query_ec2_instances(ec2_client, searchtags, instanceid=None):
 
     except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
         format_output(ssotokenerr, "error")
+        sys.exit(1)
 
     except botocore.exceptions.ProfileNotFound as profileerr:
         format_output(profileerr, "error")
+        sys.exit(1)
 
     instance_dict = {}
     for reservation in running_instances["Reservations"]:
@@ -151,6 +156,7 @@ def query_ec2_instances(ec2_client, searchtags, instanceid=None):
     if instances_num == 0:
         ec2_client.close()
         format_output("No results returned", "error")
+        sys.exit(1)
     else:
         return instance_dict
 
@@ -355,6 +361,7 @@ def query_ebs_snapshots(ec2_client, instance_dict, max_results=5):
             separator()
             ec2_client.close()
             format_output("No valid snapshots found", "error")
+            sys.exit(1)
 
     return instance_dict
 
@@ -565,6 +572,7 @@ def restore_ebs_volume(
             )
         else:
             format_output(waiterr.message, "error")
+        sys.exit(1)
 
 
 def toggle_ec2_state(ec2_client, instance_id, state=1, wait_delay=15, wait_attempts=40):
@@ -596,6 +604,7 @@ def toggle_ec2_state(ec2_client, instance_id, state=1, wait_delay=15, wait_attem
                 )
             else:
                 format_output(waiterr.message, "error")
+            sys.exit(1)
 
     else:
         format_output(f"Triggering stop of instance {instance_id}...")
@@ -620,6 +629,7 @@ def toggle_ec2_state(ec2_client, instance_id, state=1, wait_delay=15, wait_attem
                 )
             else:
                 format_output(waiterr.message, "error")
+            sys.exit(1)
 
 
 def detach_ebs_volume(
@@ -655,6 +665,7 @@ def detach_ebs_volume(
             )
         else:
             format_output(waiterr.message, "error")
+        sys.exit(1)
 
 
 def attach_ebs_volume(
@@ -690,6 +701,7 @@ def attach_ebs_volume(
             )
         else:
             format_output(waiterr.message, "error")
+        sys.exit(1)
 
     return True
 
@@ -789,6 +801,7 @@ def save_plan(searchtags_dict, instance_dict, save_file):
 
     except OSError as err:
         format_output(err, "error")
+        sys.exit(1)
 
 
 def load_plan(load_file):
@@ -810,19 +823,23 @@ def load_plan(load_file):
 
     except OSError as err:
         format_output(err, "error")
+        sys.exit(1)
 
     format_output("Validating plan...")
     if type(input_dict) is not dict:
         format_output("Loaded plan is not a valid data structure", "error")
+        sys.exit(1)
 
     if "metadata" not in input_dict or "plan" not in input_dict:
         format_output("Invalid plan. Expected structure elements are missing", "error")
+        sys.exit(1)
 
     if (
         "searchtags_dict" not in input_dict["plan"]
         or "instance_dict" not in input_dict["plan"]
     ):
         format_output("Invalid plan. Expected plan elements are missing", "error")
+        sys.exit(1)
 
     metadata_checksum = input_dict["metadata"]["checksum"]
     plan_checksum = hashlib.md5(
@@ -832,6 +849,7 @@ def load_plan(load_file):
     ).hexdigest()
     if metadata_checksum != plan_checksum:
         format_output("Plan checksum mismatch. Has the plan been modified?", "error")
+        sys.exit(1)
 
     format_output("Plan validated successfully")
     plan_age_seconds = int(time.time()) - input_dict["metadata"]["timestamp"]
@@ -851,9 +869,11 @@ def verify_instance(ec2_client, plan_instance_id, plan_instance_metadata):
 
     except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
         format_output(ssotokenerr, "error")
+        sys.exit(1)
 
     except botocore.exceptions.ProfileNotFound as profileerr:
         format_output(profileerr, "error")
+        sys.exit(1)
 
     validate_response(response)
     for reservation in response["Reservations"]:
@@ -870,6 +890,7 @@ def verify_instance(ec2_client, plan_instance_id, plan_instance_metadata):
                         f"Instance name does not match. Plan: {plan_instance_metadata['Name']}, Actual: {instance_name}",
                         "error",
                     )
+                    sys.exit(1)
 
                 format_output("Verifying Instance IP Address...", "item")
                 if plan_instance_metadata["IPAddress"] != instance["PrivateIpAddress"]:
@@ -877,12 +898,14 @@ def verify_instance(ec2_client, plan_instance_id, plan_instance_metadata):
                         f"Instance IP Address does not match. Plan: {plan_instance_metadata['IPAddress']}, Actual: {instance['PrivateIpAddress']}",
                         "error",
                     )
+                    sys.exit(1)
 
         else:
             format_output(
                 f"The instance with Instance ID {plan_instance_id} could not be found",
                 "error",
             )
+            sys.exit(1)
 
 
 def verify_volume(ec2_client, plan_volume_id, plan_volume_metadata):
@@ -897,9 +920,11 @@ def verify_volume(ec2_client, plan_volume_id, plan_volume_metadata):
 
     except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
         format_output(ssotokenerr, "error")
+        sys.exit(1)
 
     except botocore.exceptions.ProfileNotFound as profileerr:
         format_output(profileerr, "error")
+        sys.exit(1)
 
     validate_response(response)
     if len(response["Volumes"]) == 1:
@@ -912,16 +937,19 @@ def verify_volume(ec2_client, plan_volume_id, plan_volume_metadata):
                             f"{key} does not match. Plan: {plan_volume_metadata[key]}, Actual: {volume['Attachments'][0]['Device']}",
                             "error",
                         )
+                        sys.exit(1)
                 elif plan_volume_metadata[key] != volume[key]:
                     format_output(
                         f"{key} does not match. Plan: {plan_volume_metadata[key]}, Actual: {volume[key]}",
                         "error",
                     )
+                    sys.exit(1)
 
     else:
         format_output(
             f"The volume with Volume ID {plan_volume_id} could not be found", "error"
         )
+        sys.exit(1)
 
 
 def verify_snapshot(ec2_client, plan_snapshot_id, plan_snapshot_metadata):
@@ -936,9 +964,11 @@ def verify_snapshot(ec2_client, plan_snapshot_id, plan_snapshot_metadata):
 
     except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
         format_output(ssotokenerr, "error")
+        sys.exit(1)
 
     except botocore.exceptions.ProfileNotFound as profileerr:
         format_output(profileerr, "error")
+        sys.exit(1)
 
     validate_response(response)
     if len(response["Snapshots"]) == 1:
@@ -952,18 +982,21 @@ def verify_snapshot(ec2_client, plan_snapshot_id, plan_snapshot_metadata):
                             f"{key} does not match. Plan: {plan_snapshot_metadata[key]}, Actual: {snapshot_starttime}",
                             "error",
                         )
+                        sys.exit(1)
 
                 elif plan_snapshot_metadata[key] != snapshot[key]:
                     format_output(
                         f"{key} does not match. Plan: {plan_snapshot_metadata[key]}, Actual: {snapshot[key]}",
                         "error",
                     )
+                    sys.exit(1)
 
     else:
         format_output(
             f"The snapshot with Snapshot ID {plan_snapshot_id} could not be found",
             "error",
         )
+        sys.exit(1)
 
 
 def revalidate_loaded_plan(ec2_client, instance_dict):
@@ -1052,9 +1085,11 @@ def main():
 
     if args.saveplan is not None and args.loadplan is not None:
         format_output("saveplan and loadplan options are mutually exclusive", "error")
+        sys.exit(1)
 
     if args.searchtags is None and args.loadplan is None:
         format_output("--searchtags not provided", "error")
+        sys.exit(1)
     elif args.searchtags is not None and args.loadplan is None:
         searchtags_dict = process_searchtags(args.searchtags)
 
@@ -1065,6 +1100,7 @@ def main():
     """
     if not os.environ.get("AWS_PROFILE") and args.profile == "":
         format_output("AWS_PROFILE is not set and --profile not set.", "error")
+        sys.exit(1)
     elif os.environ.get("AWS_PROFILE") and args.profile == "":
         awsprofile = os.environ.get("AWS_PROFILE")
     elif not os.environ.get("AWS_PROFILE") and args.profile != "":
@@ -1073,6 +1109,7 @@ def main():
         awsprofile = args.profile
     else:
         format_output("Unexpected error determining AWS Profile.", "error")
+        sys.exit(1)
 
     """
     Run the main script sequence encapsulated in a try/except so we
