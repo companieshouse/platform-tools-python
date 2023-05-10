@@ -9,7 +9,6 @@ import time
 
 from collections import Counter
 
-
 class colours:
     dblue = "\033[0;34m"
     dred = "\033[0;31m"
