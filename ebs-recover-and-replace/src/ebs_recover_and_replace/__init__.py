@@ -9,10 +9,44 @@ import time
 
 from collections import Counter
 
+class colours:
+    dblue = "\033[0;34m"
+    dred = "\033[0;31m"
+    byellow = "\033[1;33m"
+    bgreen = "\033[1;32m"
+    bold = "\033[1m"
+    end = "\033[0m"
 
-def separator(width=72):
+
+def format_output(message="", style="info", indent=4):
+    prefix = ""
+    suffix = ""
+    if style == "error":
+        print(f"{colours.dred}{style.capitalize()}:{colours.end} {message}")
+    else:
+        if style == "info":
+            prefix = f"{colours.dblue}{style.capitalize()}:{colours.end} "
+
+        if style == "warn":
+            prefix = f"{colours.byellow}{style.capitalize()}:{colours.end} "
+
+        if style == "item":
+            prefix = f"{'':<{indent}}"
+
+        if style == "choice":
+            prefix = f"{colours.bgreen}→{colours.end} "
+
+        if style == "header":
+            prefix = f"{colours.bold}"
+            suffix = f"{colours.end}"
+
+    print(prefix + message + suffix)
+
+
+def separator(width=80):
     print()
-    print("=" * width)
+    banner = f"{'-' * width}"
+    format_output(banner, "header")
 
 
 def process_searchtags(searchtags):
@@ -29,20 +63,20 @@ def process_searchtags(searchtags):
 
 def validate_response(response):
     if response["ResponseMetadata"]["HTTPStatusCode"] != 200:
-        sys.exit(
-            "Received {} error from AWS".format(
-                response["ResponseMetadata"]["HTTPStatusCode"]
-            )
+        format_output(
+            f"Received {response['ResponseMetadata']['HTTPStatusCode']} error from AWS",
+            "error",
         )
+        sys.exit(1)
 
 
 def create_ec2_client(awsprofile, awsregion):
     """
     Connects to the AWS API and returns an EC2 client object
     """
-    print("Connecting to AWS...")
-    print("AWS Profile:".ljust(20) + "{}".format(awsprofile))
-    print("AWS Region:".ljust(20) + "{}".format(awsregion))
+    format_output("Connecting to AWS...")
+    format_output(f"AWS Profile: [{awsprofile}]")
+    format_output(f"AWS Region:  [{awsregion}]")
     try:
         # Connect to EC2
         session = boto3.Session(profile_name=awsprofile)
@@ -50,13 +84,16 @@ def create_ec2_client(awsprofile, awsregion):
         return ec2_client
 
     except botocore.exceptions.NoCredentialsError as nocrederr:
-        sys.exit(nocrederr)
+        format_output(nocrederr, "error")
+        sys.exit(1)
 
     except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
-        sys.exit(ssotokenerr)
+        format_output(ssotokenerr, "error")
+        sys.exit(1)
 
     except botocore.exceptions.ProfileNotFound as profileerr:
-        sys.exit(profileerr)
+        format_output(profileerr, "error")
+        sys.exit(1)
 
 
 def query_ec2_instances(ec2_client, searchtags, instanceid=None):
@@ -65,8 +102,8 @@ def query_ec2_instances(ec2_client, searchtags, instanceid=None):
     formed from the provided tag names and values.
     Can optionally be provided an instance ID to further refine the results.
     """
-    print("Querying instances...")
-    print("Search Tags:".ljust(20) + "{}".format(searchtags))
+    format_output("Querying instances...")
+    format_output(f"Search Tags: [{searchtags}]")
     filters_list = []
     for tagname, tagvalue in searchtags.items():
         filters_list.append({"Name": "tag:" + tagname, "Values": [tagvalue]})
@@ -81,10 +118,12 @@ def query_ec2_instances(ec2_client, searchtags, instanceid=None):
         )
 
     except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
-        sys.exit(ssotokenerr)
+        format_output(ssotokenerr, "error")
+        sys.exit(1)
 
     except botocore.exceptions.ProfileNotFound as profileerr:
-        sys.exit(profileerr)
+        format_output(profileerr, "error")
+        sys.exit(1)
 
     instance_dict = {}
     for reservation in running_instances["Reservations"]:
@@ -115,7 +154,8 @@ def query_ec2_instances(ec2_client, searchtags, instanceid=None):
 
     if instances_num == 0:
         ec2_client.close()
-        sys.exit("No results returned")
+        format_output("No results returned", "error")
+        sys.exit(1)
     else:
         return instance_dict
 
@@ -125,33 +165,31 @@ def get_instance_choice(instance_dict):
     If more than 1 instance is returned on a query, the user must specify on which
     instance the operations are to take place on.
     """
-    print("Instances Found:".ljust(20) + "{}".format(len(Counter(instance_dict))))
-    print("Select an instance to continue:")
+    format_output(f"Instances Found: {len(Counter(instance_dict))}")
+    format_output("Select an instance to continue:", "choice")
     for index, instance_id in enumerate(instance_dict):
         instance_name = instance_dict[instance_id]["Name"]
         private_ip = instance_dict[instance_id]["IPAddress"]
-        print(
-            "    [{}] {}, {} ({})".format(index, instance_id, instance_name, private_ip)
+        format_output(
+            f"[{index}] {instance_id}, {instance_name} ({private_ip})", "item"
         )
 
     print()
     while True:
-        selection_raw = input("Instance Selection:".ljust(20))
+        selection_raw = input("Instance Selection: ")
         try:
             selection_int = int(selection_raw)
         except ValueError:
-            print(
-                "Selection must be a number from 0 to {}".format(
-                    len(Counter(instance_dict)) - 1
-                )
+            format_output(
+                f"Selection must be a number from 0 to {len(Counter(instance_dict)) - 1}",
+                "warn",
             )
             continue
 
         if not (0 <= selection_int <= len(Counter(instance_dict)) - 1):
-            print(
-                "Selection must be a number from 0 to {}".format(
-                    len(Counter(instance_dict)) - 1
-                )
+            format_output(
+                f"Selection must be a number from 0 to {len(Counter(instance_dict)) - 1}",
+                "warn",
             )
             continue
         else:
@@ -173,20 +211,12 @@ def get_volume_choice(instance_dict):
     """
 
     for index, instance_id in enumerate(instance_dict):
-        print("Instance ID:".ljust(20) + "{}".format(instance_id))
-        print(
-            "Instance Name:".ljust(20) + "{}".format(instance_dict[instance_id]["Name"])
-        )
-        print(
-            "IP Address:".ljust(20)
-            + "{}".format(instance_dict[instance_id]["IPAddress"])
-        )
-        print(
-            "Block Devices:".ljust(20)
-            + "{}\n".format(len(instance_dict[instance_id]["BlockDevs"]))
-        )
+        format_output(f"Instance ID:   {instance_id}")
+        format_output(f"Instance Name: {instance_dict[instance_id]['Name']}")
+        format_output(f"IP Address:    {instance_dict[instance_id]['IPAddress']}")
+        format_output(f"Block Devices: {len(instance_dict[instance_id]['BlockDevs'])}")
 
-        print("Select an option to continue:")
+        format_output("Select an option to continue:", "choice")
         for index, device in enumerate(instance_dict[instance_id]["BlockDevs"]):
             volume_id = device["VolumeId"]
             device_node = device["DeviceName"]
@@ -194,29 +224,26 @@ def get_volume_choice(instance_dict):
                 device_message = "** ROOT **"
             else:
                 device_message = ""
-            print(
-                "    [{}] {} ({}) {}".format(
-                    index, volume_id, device_node, device_message
-                )
+            format_output(
+                f"[{index}] {volume_id} ({device_node}) {device_message}", "item"
             )
 
-        print("    [A] All block devices")
+        format_output("[A] All block devices", "item")
 
         print()
         while True:
-            selection_raw = input("Device Selection: ".ljust(20))
+            selection_raw = input("Device Selection: ")
 
             if selection_raw == "A" or selection_raw == "a":
-                print("All block devices selected")
+                format_output("All block devices selected")
                 return instance_dict
             else:
                 try:
                     selection_int = int(selection_raw)
                 except ValueError:
-                    print(
-                        "Selection must be a number from 0 to {} or A for all block devices".format(
-                            len(instance_dict[instance_id]["BlockDevs"]) - 1
-                        )
+                    format_output(
+                        f"Selection must be a number from 0 to {len(instance_dict[instance_id]['BlockDevs']) - 1} or A for all block devices",
+                        "warn",
                     )
                     continue
 
@@ -225,10 +252,9 @@ def get_volume_choice(instance_dict):
                     <= selection_int
                     <= len(instance_dict[instance_id]["BlockDevs"]) - 1
                 ):
-                    print(
-                        "Selection must be a number from 0 to {} or A for all block devices".format(
-                            len(instance_dict[instance_id]["BlockDevs"]) - 1
-                        )
+                    format_output(
+                        f"Selection must be a number from 0 to {len(instance_dict[instance_id]['BlockDevs']) - 1} or A for all block devices",
+                        "warn",
                     )
                     continue
                 else:
@@ -246,7 +272,7 @@ def get_volume_data(ec2_client, instance_dict):
     Returns additional data about each chosen volume, such as encryption status
     availability zone and capacity
     """
-    print("Updating volume data...")
+    format_output("Updating volume data...")
 
     for instance_id in instance_dict:
         for block_index, block_device in enumerate(
@@ -254,9 +280,7 @@ def get_volume_data(ec2_client, instance_dict):
         ):
             device_name = block_device["DeviceName"]
             volume_id = block_device["VolumeId"]
-            print(
-                "Querying Volume:".ljust(20) + "{} ({})".format(volume_id, device_name)
-            )
+            format_output(f"Querying Volume: {volume_id} ({device_name})")
             volume_data = ec2_client.describe_volumes(VolumeIds=[volume_id])
 
             for volume in volume_data["Volumes"]:
@@ -286,7 +310,7 @@ def query_ebs_snapshots(ec2_client, instance_dict, max_results=5):
     Queries for any EBS snapshots based on a provided EBS volume ID. If any are
     found, the `max_results` most recent snapshots are returned.
     """
-    print("Querying EBS snapshots...")
+    format_output("Querying EBS snapshots...")
 
     omit_indexes = []
     for instance_id in instance_dict:
@@ -295,7 +319,7 @@ def query_ebs_snapshots(ec2_client, instance_dict, max_results=5):
         ):
             device_name = block_device["DeviceName"]
             volume_id = block_device["VolumeId"]
-            print("Source Volume:".ljust(20) + "{} ({})".format(volume_id, device_name))
+            format_output(f"Source Volume: {volume_id} ({device_name})")
             snapshot_data = ec2_client.describe_snapshots(
                 Filters=[{"Name": "volume-id", "Values": [volume_id]}],
                 OwnerIds=["self"],
@@ -303,17 +327,13 @@ def query_ebs_snapshots(ec2_client, instance_dict, max_results=5):
             )
 
             if len(snapshot_data["Snapshots"]) == 0:
-                print(
-                    "Snapshots Found:".ljust(20)
-                    + "{} - Omitting Volume".format(len(snapshot_data["Snapshots"]))
+                format_output(
+                    f"Snapshots Found: {len(snapshot_data['Snapshots'])} - Omitting Volume"
                 )
                 omit_indexes.append(block_index)
 
             if len(snapshot_data["Snapshots"]) > 0:
-                print(
-                    "Snapshots Found:".ljust(20)
-                    + "{}".format(len(snapshot_data["Snapshots"]))
-                )
+                format_output(f"Snapshots Found: {len(snapshot_data['Snapshots'])}")
                 instance_dict[instance_id]["BlockDevs"][block_index].update(
                     {"Snapshots": len(snapshot_data["Snapshots"])}
                 )
@@ -322,7 +342,7 @@ def query_ebs_snapshots(ec2_client, instance_dict, max_results=5):
                 for snapshot in snapshot_data["Snapshots"]:
                     if snapshot["VolumeId"] == volume_id:
                         snapshot_id = snapshot["SnapshotId"]
-                        snapshot_starttime = "{}".format(snapshot["StartTime"])
+                        snapshot_starttime = f"{snapshot['StartTime']}"
                         snapshot_list.append(
                             {"SnapshotId": snapshot_id, "StartTime": snapshot_starttime}
                         )
@@ -339,7 +359,8 @@ def query_ebs_snapshots(ec2_client, instance_dict, max_results=5):
         if len(instance_dict[instance_id]["BlockDevs"]) == 0:
             separator()
             ec2_client.close()
-            sys.exit("Error: No valid snapshots found")
+            format_output("No valid snapshots found", "error")
+            sys.exit(1)
 
     return instance_dict
 
@@ -355,46 +376,39 @@ def get_snapshot_choice(instance_dict):
         ):
             device_name = block_device["DeviceName"]
             volume_id = block_device["VolumeId"]
-            print()
-            print("Source Volume:".ljust(20) + "{} ({})".format(volume_id, device_name))
-            print()
-            print("Select a snapshot to continue:")
+            format_output(f"Source Volume: {volume_id} ({device_name})")
+            format_output("Select a snapshot to continue:", "choice")
 
             for snapshot_index, snapshot_data in enumerate(
                 block_device["SnapshotData"]
             ):
                 snapshot_id = snapshot_data["SnapshotId"]
                 snapshot_starttime = snapshot_data["StartTime"]
-                print(
-                    "    [{}] {} ({})".format(
-                        snapshot_index, snapshot_id, snapshot_starttime
-                    )
+                format_output(
+                    f"[{snapshot_index}] {snapshot_id} ({snapshot_starttime})", "item"
                 )
 
             omit_indexes = []
             print()
             while True:
-                selection_raw = input("Snapshot Selection: ".ljust(20))
+                selection_raw = input("Snapshot Selection: ")
 
                 try:
                     selection_int = int(selection_raw)
                 except ValueError:
-                    print(
-                        "Selection must be a number from 0 to {}".format(
-                            len(block_device["SnapshotData"]) - 1
-                        )
+                    format_output(
+                        f"Selection must be a number from 0 to {len(block_device['SnapshotData']) - 1}",
+                        "warn",
                     )
                     continue
 
                 if not (0 <= selection_int <= len(block_device["SnapshotData"]) - 1):
-                    print(
-                        "Selection must be a number from 0 to {}".format(
-                            len(block_device["SnapshotData"]) - 1
-                        )
+                    format_output(
+                        f"Selection must be a number from 0 to {len(block_device['SnapshotData']) - 1}",
+                        "warn",
                     )
                     continue
                 else:
-                    print("Snapshot {} selected".format(selection_int))
                     for snapshot_index, snapshot_data in enumerate(
                         block_device["SnapshotData"]
                     ):
@@ -422,9 +436,8 @@ def get_reattach_choice(instance_dict):
     """
 
     for instance_id in instance_dict:
-        print(
-            """
-Would you like the restored volumes to be automatically switched with the existing
+        format_output(
+            """Would you like the restored volumes to be automatically switched with the existing
 volumes on the target instance?
 
 If answering "yes", the target instance will be shut-down and the existing volumes
@@ -432,13 +445,13 @@ detached. The volumes restored from snapshot will then be attached in their plac
 
 If answering "no", new volumes will be created from the selected snapshots only.
 
-NOTE: The original volumes will continue to exist. No resources will be removed.
-    """
+NOTE: The original volumes will continue to exist. No resources will be removed.""",
+            "choice",
         )
 
         print()
         while True:
-            answer_raw = input("Switch Volumes:".ljust(20))
+            answer_raw = input("Switch Volumes: ")
 
             if answer_raw.lower() == "yes":
                 instance_dict[instance_id].update({"SwitchVols": True})
@@ -447,7 +460,7 @@ NOTE: The original volumes will continue to exist. No resources will be removed.
                 instance_dict[instance_id].update({"SwitchVols": False})
                 break
             else:
-                print('Please answer with "yes" or "no"')
+                format_output('Please answer with "yes" or "no"', "warn")
                 continue
 
     return instance_dict
@@ -460,20 +473,16 @@ def get_user_confirmation(instance_dict):
     """
 
     for instance_id in instance_dict:
-        print("Instance ID:".ljust(20) + "{}".format(instance_id))
-        print(
-            "Instance Name:".ljust(20) + "{}".format(instance_dict[instance_id]["Name"])
-        )
-        print(
-            "IP Address:".ljust(20)
-            + "{}".format(instance_dict[instance_id]["IPAddress"])
-        )
+        format_output(f"Instance ID:   {instance_id}")
+        format_output(f"Instance Name: {instance_dict[instance_id]['Name']}")
+        format_output(f"IP Address:    {instance_dict[instance_id]['IPAddress']}")
         print()
-        print(
+        format_output(
             "Volume ID".ljust(25)
             + "Device Node".ljust(15)
             + "Snapshot ID".ljust(25)
-            + "Snapshot Date"
+            + "Snapshot Date",
+            "header",
         )
         for block_device in instance_dict[instance_id]["BlockDevs"]:
             print(
@@ -484,21 +493,18 @@ def get_user_confirmation(instance_dict):
             )
 
         print()
-        print(
-            "Switch Volumes:".ljust(20)
-            + "{}".format(instance_dict[instance_id]["SwitchVols"])
-        )
+        format_output(f"Switch Volumes: {instance_dict[instance_id]['SwitchVols']}")
         print()
-        print("Proceeed with the chosen options?")
+        format_output("Proceeed with the chosen options?", "choice")
         print()
         while True:
-            answer_raw = input("Proceed:".ljust(20))
+            answer_raw = input("Proceed: ")
             if answer_raw.lower() == "yes":
                 return True
             elif answer_raw.lower() == "no":
                 return False
             else:
-                print('Please answer with "yes" or "no"')
+                format_output('Please answer with "yes" or "no"', "warn")
                 continue
 
 
@@ -521,9 +527,7 @@ def restore_ebs_volume(
     for tagname, tagvalue in searchtags_dict.items():
         tags_list.append({"Key": tagname, "Value": tagvalue})
 
-    print(
-        "Initiating restore from {} for {}... ".format(snapshot_id, device_name),
-    )
+    format_output(f"Initiating restore from {snapshot_id} for {device_name}...")
     if block_device["Encrypted"]:
         response = ec2_client.create_volume(
             AvailabilityZone=block_device["AvailabilityZone"],
@@ -546,9 +550,7 @@ def restore_ebs_volume(
 
     validate_response(response)
     new_volume_id = response["VolumeId"]
-    print(
-        "Waiting for {} to become ready... ".format(new_volume_id),
-    )
+    format_output(f"Waiting for {new_volume_id} to become ready...")
     new_volume_waiter = ec2_client.get_waiter("volume_available")
 
     try:
@@ -563,13 +565,13 @@ def restore_ebs_volume(
 
     except botocore.exceptions.WaiterError as waiterr:
         if "Max attempts exceeded" in waiterr.message:
-            print(
-                "Volume {} failed to become ready in {} seconds".format(
-                    new_volume_id, wait_delay * wait_attempts
-                )
+            format_output(
+                f"Volume {new_volume_id} failed to become ready in {wait_delay * wait_attempts} seconds",
+                "error",
             )
         else:
-            print(waiterr.message)
+            format_output(waiterr.message, "error")
+        sys.exit(1)
 
 
 def toggle_ec2_state(ec2_client, instance_id, state=1, wait_delay=15, wait_attempts=40):
@@ -579,15 +581,11 @@ def toggle_ec2_state(ec2_client, instance_id, state=1, wait_delay=15, wait_attem
     """
     print()
     if state == 1:
-        print(
-            "Triggering start of instance {}... ".format(instance_id),
-        )
+        format_output(f"Triggering start of instance {instance_id}...")
         response = ec2_client.start_instances(InstanceIds=[instance_id])
 
         validate_response(response)
-        print(
-            "Waiting for instance {} to start... ".format(instance_id),
-        )
+        format_output(f"Waiting for instance {instance_id} to start... ")
         running_waiter = ec2_client.get_waiter("instance_running")
 
         try:
@@ -599,24 +597,20 @@ def toggle_ec2_state(ec2_client, instance_id, state=1, wait_delay=15, wait_attem
         except botocore.exceptions.WaiterError as waiterr:
             print()
             if "Max attempts exceeded" in waiterr.message:
-                print(
-                    "Instance {} failed to start in {} seconds".format(
-                        instance_id, wait_delay * wait_attempts
-                    )
+                format_output(
+                    f"Instance {instance_id} failed to start in {wait_delay * wait_attempts} seconds",
+                    "error",
                 )
             else:
-                print(waiterr.message)
+                format_output(waiterr.message, "error")
+            sys.exit(1)
 
     else:
-        print(
-            "Triggering stop of instance {}... ".format(instance_id), end="", flush=True
-        )
+        format_output(f"Triggering stop of instance {instance_id}...")
         response = ec2_client.stop_instances(InstanceIds=[instance_id])
 
         validate_response(response)
-        print(
-            "Waiting for instance {} to stop... ".format(instance_id),
-        )
+        format_output(f"Waiting for instance {instance_id} to stop...")
         stop_waiter = ec2_client.get_waiter("instance_stopped")
 
         try:
@@ -628,13 +622,13 @@ def toggle_ec2_state(ec2_client, instance_id, state=1, wait_delay=15, wait_attem
         except botocore.exceptions.WaiterError as waiterr:
             print()
             if "Max attempts exceeded" in waiterr.message:
-                print(
-                    "Stopping instance {} failed to complete in {} seconds".format(
-                        instance_id, wait_delay * wait_attempts
-                    )
+                format_output(
+                    f"Stopping instance {instance_id} failed to complete in {wait_delay * wait_attempts} seconds",
+                    "error",
                 )
             else:
-                print(waiterr.message)
+                format_output(waiterr.message, "error")
+            sys.exit(1)
 
 
 def detach_ebs_volume(
@@ -645,17 +639,13 @@ def detach_ebs_volume(
     instance ID.
     """
     print()
-    print(
-        "Detaching volume: {} ({})... ".format(volume_id, device_name),
-    )
+    format_output(f"Detaching volume: {volume_id} ({device_name})...")
     response = ec2_client.detach_volume(
         Device=device_name, InstanceId=instance_id, VolumeId=volume_id
     )
 
     validate_response(response)
-    print(
-        "Waiting for volume {} to detach... ".format(volume_id), end="", flush=True
-    )
+    format_output(f"Waiting for volume {volume_id} to detach... ")
     available_waiter = ec2_client.get_waiter("volume_available")
 
     try:
@@ -668,13 +658,13 @@ def detach_ebs_volume(
     except botocore.exceptions.WaiterError as waiterr:
         print()
         if "Max attempts exceeded" in waiterr.message:
-            print(
-                "Volume {} failed to detach in {} seconds".format(
-                    volume_id, wait_delay * wait_attempts
-                )
+            format_output(
+                f"Volume {volume_id} failed to detach in {wait_delay * wait_attempts} seconds",
+                "error",
             )
         else:
-            print(waiterr.message)
+            format_output(waiterr.message, "error")
+        sys.exit(1)
 
 
 def attach_ebs_volume(
@@ -685,17 +675,13 @@ def attach_ebs_volume(
     instance ID.
     """
     print()
-    print(
-        "Attaching volume: {} ({})... ".format(new_volume_id, device_name),
-    )
+    format_output(f"Attaching volume: {new_volume_id} ({device_name})...")
     response = ec2_client.attach_volume(
         Device=device_name, InstanceId=instance_id, VolumeId=new_volume_id
     )
 
     validate_response(response)
-    print(
-        "Waiting for volume {} to detach... ".format(new_volume_id),
-    )
+    format_output(f"Waiting for volume {new_volume_id} to detach...")
     in_use_waiter = ec2_client.get_waiter("volume_in_use")
 
     try:
@@ -708,13 +694,13 @@ def attach_ebs_volume(
     except botocore.exceptions.WaiterError as waiterr:
         print()
         if "Max attempts exceeded" in waiterr.message:
-            print(
-                "Volume {} failed to attach in {} seconds".format(
-                    new_volume_id, wait_delay * wait_attempts
-                )
+            format_output(
+                f"Volume {new_volume_id} failed to attach in {wait_delay * wait_attempts} seconds",
+                "error",
             )
         else:
-            print(waiterr.message)
+            format_output(waiterr.message, "error")
+        sys.exit(1)
 
     return True
 
@@ -726,7 +712,7 @@ def manage_restore_process(ec2_client, instance_dict, searchtags_dict):
     """
     print()
     for instance_id in instance_dict:
-        print("Starting volume restore process for {}".format(instance_id))
+        format_output(f"Starting volume restore process for {instance_id}")
         separator()
         for block_device in instance_dict[instance_id]["BlockDevs"]:
             new_volume_id = restore_ebs_volume(
@@ -745,7 +731,7 @@ def manage_restore_process(ec2_client, instance_dict, searchtags_dict):
             toggle_ec2_state(ec2_client, instance_id, 1)
 
     separator()
-    print("Restore process completed.")
+    format_output("Restore process completed")
 
 
 def seconds_to_dhms(total_seconds):
@@ -763,23 +749,23 @@ def seconds_to_dhms(total_seconds):
         else:
             label = "days"
 
-        output_string += "{} {}, ".format(days, label)
+        output_string += f"{days} {label}, "
 
     if hours > 0:
         if hours == 1:
             label = "hour"
         else:
             label = "hours"
-        output_string += "{} {}, ".format(hours, label)
+        output_string += f"{hours} {label}, "
 
     if minutes > 0:
         if minutes == 1:
             label = "minute"
         else:
             label = "minutes"
-        output_string += "{} {}, ".format(minutes, label)
+        output_string += f"{minutes} {label}, "
 
-    output_string += "{} seconds ago".format(seconds)
+    output_string += f"{seconds} seconds ago"
     return output_string
 
 
@@ -789,7 +775,7 @@ def save_plan(searchtags_dict, instance_dict, save_file):
     as a plan to be loaded and executed at a later date
     """
     print()
-    print("Preparing recovery plan...")
+    format_output("Preparing recovery plan...")
 
     output_dict = {}
     output_dict.update(
@@ -805,18 +791,16 @@ def save_plan(searchtags_dict, instance_dict, save_file):
     )
 
     try:
-        print("Saving plan to file: {}".format(save_file))
+        format_output(f"Saving plan to file: {save_file}")
         with open(save_file, "w") as f:
             f.write(json.dumps(output_dict))
 
         f.close()
-        print()
-        print("Plan saved successfully")
+        format_output("Plan saved successfully")
 
     except OSError as err:
-        sys.exit(err)
-    except FileExistsError as err:
-        sys.exit(err)
+        format_output(err, "error")
+        sys.exit(1)
 
 
 def load_plan(load_file):
@@ -824,37 +808,37 @@ def load_plan(load_file):
     Load a previously-saved JSON-formatted plan file and validate
     the data within is consistent
     """
-    print()
-    print("Loading recovery plan...")
+    format_output("Loading recovery plan...")
 
     input_dict = {}
 
     try:
-        print("Reading plan from file: {}".format(load_file))
+        format_output(f"Reading plan from file: {load_file}")
         with open(load_file, "r") as f:
             input_dict = json.load(f)
 
         f.close()
-        print("Plan loaded successfully")
+        format_output("Plan loaded successfully")
 
     except OSError as err:
-        sys.exit(err)
-    except FileExistsError as err:
-        sys.exit(err)
+        format_output(err, "error")
+        sys.exit(1)
 
-    print()
-    print("Validating plan...")
+    format_output("Validating plan...")
     if type(input_dict) is not dict:
-        sys.exit("Error: Loaded plan is not a valid data structure")
+        format_output("Loaded plan is not a valid data structure", "error")
+        sys.exit(1)
 
     if "metadata" not in input_dict or "plan" not in input_dict:
-        sys.exit("Error: Invalid plan. Expected structure elements are missing")
+        format_output("Invalid plan. Expected structure elements are missing", "error")
+        sys.exit(1)
 
     if (
         "searchtags_dict" not in input_dict["plan"]
         or "instance_dict" not in input_dict["plan"]
     ):
-        sys.exit("Error: Invalid plan. Expected plan elements are missing")
+        format_output("Invalid plan. Expected plan elements are missing", "error")
+        sys.exit(1)
 
     metadata_checksum = input_dict["metadata"]["checksum"]
     plan_checksum = hashlib.md5(
@@ -863,12 +847,12 @@ def load_plan(load_file):
         )
     ).hexdigest()
     if metadata_checksum != plan_checksum:
-        sys.exit("Error: Plan checksum mismatch. Has the plan been modified?")
+        format_output("Plan checksum mismatch. Has the plan been modified?", "error")
+        sys.exit(1)
 
-    print("Plan validated successfully")
-    print()
+    format_output("Plan validated successfully")
     plan_age_seconds = int(time.time()) - input_dict["metadata"]["timestamp"]
-    print("Plan created: {}".format(seconds_to_dhms(plan_age_seconds)))
+    format_output(f"Plan created: {seconds_to_dhms(plan_age_seconds)}")
     return input_dict["plan"]["searchtags_dict"], input_dict["plan"]["instance_dict"]
 
 
@@ -877,55 +861,50 @@ def verify_instance(ec2_client, plan_instance_id, plan_instance_metadata):
     Verifies that the provided Instance exists in AWS
     and that the provided instance data matches
     """
-
-    print(
-        "Checking Instance ID: {}... ".format(plan_instance_id),
-    )
+    format_output(f"Checking Instance ID: {plan_instance_id}...")
 
     try:
         response = ec2_client.describe_instances(InstanceIds=[plan_instance_id])
 
     except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
-        sys.exit(ssotokenerr)
+        format_output(ssotokenerr, "error")
+        sys.exit(1)
 
     except botocore.exceptions.ProfileNotFound as profileerr:
-        sys.exit(profileerr)
+        format_output(profileerr, "error")
+        sys.exit(1)
 
     validate_response(response)
     for reservation in response["Reservations"]:
         if len(reservation["Instances"]) == 1:
             for instance in reservation["Instances"]:
-                print("    Verifying Instance Name... ")
+                format_output("Verifying Instance Name... ", "item")
                 instance_name = ""
                 for tags in instance["Tags"]:
                     if tags["Key"] == "Name":
                         instance_name = tags["Value"]
 
                 if plan_instance_metadata["Name"] != instance_name:
-                    sys.exit(
-                        "Error: Instance name does not match\nPlan: {}, Actual: {}".format(
-                            plan_instance_metadata["Name"], instance_name
-                        )
+                    format_output(
+                        f"Instance name does not match. Plan: {plan_instance_metadata['Name']}, Actual: {instance_name}",
+                        "error",
                     )
+                    sys.exit(1)
 
-                print("    Verifying Instance IP Address... ")
-                if (
-                    plan_instance_metadata["IPAddress"]
-                    != instance["PrivateIpAddress"]
-                ):
-                    sys.exit(
-                        "Error: Instance IP Address does not match\nPlan: {}, Actual: {}".format(
-                            plan_instance_metadata["IPAddress"],
-                            instance["PrivateIpAddress"],
-                        )
+                format_output("Verifying Instance IP Address...", "item")
+                if plan_instance_metadata["IPAddress"] != instance["PrivateIpAddress"]:
+                    format_output(
+                        f"Instance IP Address does not match. Plan: {plan_instance_metadata['IPAddress']}, Actual: {instance['PrivateIpAddress']}",
+                        "error",
                     )
+                    sys.exit(1)
 
         else:
-            sys.exit(
-                "Error: The instance with Instance ID {} could not be found".format(
-                    plan_instance_id
-                )
+            format_output(
+                f"The instance with Instance ID {plan_instance_id} could not be found",
+                "error",
             )
+            sys.exit(1)
 
 
 def verify_volume(ec2_client, plan_volume_id, plan_volume_metadata):
@@ -933,50 +912,43 @@ def verify_volume(ec2_client, plan_volume_id, plan_volume_metadata):
     Verifies that the provided Volume exists in AWS
     and that the provided volume data matches
     """
-
-    print("Checking Volume ID: {}... ".format(plan_volume_id))
+    format_output(f"Checking Volume ID: {plan_volume_id}...")
 
     try:
         response = ec2_client.describe_volumes(VolumeIds=[plan_volume_id])
 
     except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
-        sys.exit(ssotokenerr)
+        format_output(ssotokenerr, "error")
+        sys.exit(1)
 
     except botocore.exceptions.ProfileNotFound as profileerr:
-        sys.exit(profileerr)
+        format_output(profileerr, "error")
+        sys.exit(1)
 
     validate_response(response)
     if len(response["Volumes"]) == 1:
         for volume in response["Volumes"]:
             for key in plan_volume_metadata.keys():
-                print("    Verifying {}... ".format(key))
+                format_output(f"Verifying {key}...", "item")
                 if key == "DeviceName":
-                    if (
-                        plan_volume_metadata[key]
-                        != volume["Attachments"][0]["Device"]
-                    ):
-                        sys.exit(
-                            "Error: {} does not match\nPlan: {}, Actual: {}".format(
-                                key,
-                                plan_volume_metadata[key],
-                                volume["Attachments"][0]["Device"],
-                            )
+                    if plan_volume_metadata[key] != volume["Attachments"][0]["Device"]:
+                        format_output(
+                            f"{key} does not match. Plan: {plan_volume_metadata[key]}, Actual: {volume['Attachments'][0]['Device']}",
+                            "error",
                         )
+                        sys.exit(1)
                 elif plan_volume_metadata[key] != volume[key]:
-                    sys.exit(
-                        "Error: {} does not match\nPlan: {}, Actual: {}".format(
-                            key,
-                            plan_volume_metadata[key],
-                            volume[key],
-                        )
+                    format_output(
+                        f"{key} does not match. Plan: {plan_volume_metadata[key]}, Actual: {volume[key]}",
+                        "error",
                     )
+                    sys.exit(1)
 
     else:
-        sys.exit(
-            "Error: The volume with Volume ID {} could not be found".format(
-                plan_volume_id
-            )
+        format_output(
+            f"The volume with Volume ID {plan_volume_id} could not be found", "error"
         )
+        sys.exit(1)
 
 
 def verify_snapshot(ec2_client, plan_snapshot_id, plan_snapshot_metadata):
@@ -984,49 +956,46 @@ def verify_snapshot(ec2_client, plan_snapshot_id, plan_snapshot_metadata):
     Verifies that the provided Snapshot exists in AWS
     and that the provided snapshot data matches
     """
-
-    print("Checking Snapshot ID: {}... ".format(plan_snapshot_id))
+    format_output(f"Checking Snapshot ID: {plan_snapshot_id}...")
 
     try:
         response = ec2_client.describe_snapshots(SnapshotIds=[plan_snapshot_id])
 
     except botocore.exceptions.UnauthorizedSSOTokenError as ssotokenerr:
-        sys.exit(ssotokenerr)
+        format_output(ssotokenerr, "error")
+        sys.exit(1)
 
     except botocore.exceptions.ProfileNotFound as profileerr:
-        sys.exit(profileerr)
+        format_output(profileerr, "error")
+        sys.exit(1)
 
     validate_response(response)
     if len(response["Snapshots"]) == 1:
         for snapshot in response["Snapshots"]:
             for key in plan_snapshot_metadata.keys():
-                print("    Verifying {}... ".format(key))
+                format_output(f"Verifying {key}...", "item")
                 if key == "StartTime":
-                    snapshot_starttime = "{}".format(snapshot["StartTime"])
+                    snapshot_starttime = f"{snapshot['StartTime']}"
                     if plan_snapshot_metadata[key] != snapshot_starttime:
-                        sys.exit(
-                            "Error: {} does not match\nPlan: {}, Actual: {}".format(
-                                key,
-                                plan_snapshot_metadata[key],
-                                snapshot_starttime,
-                            )
+                        format_output(
+                            f"{key} does not match. Plan: {plan_snapshot_metadata[key]}, Actual: {snapshot_starttime}",
+                            "error",
                         )
+                        sys.exit(1)
 
                 elif plan_snapshot_metadata[key] != snapshot[key]:
-                    sys.exit(
-                        "Error: {} does not match\nPlan: {}, Actual: {}".format(
-                            key,
-                            plan_snapshot_metadata[key],
-                            snapshot[key],
-                        )
+                    format_output(
+                        f"{key} does not match. Plan: {plan_snapshot_metadata[key]}, Actual: {snapshot[key]}",
+                        "error",
                     )
+                    sys.exit(1)
 
     else:
-        sys.exit(
-            "Error: The snapshot with Snapshot ID {} could not be found".format(
-                plan_snapshot_id
-            )
+        format_output(
+            f"The snapshot with Snapshot ID {plan_snapshot_id} could not be found",
+            "error",
         )
+        sys.exit(1)
 
 
 def revalidate_loaded_plan(ec2_client, instance_dict):
@@ -1034,8 +1003,7 @@ def revalidate_loaded_plan(ec2_client, instance_dict):
     Re-validates the provided instance_dict to ensure the supplied
     AWS resource IDs are valid and still exist
     """
-    print()
-    print("Re-validating resource IDs...")
+    format_output("Re-validating resource IDs...")
 
     for instance_id in instance_dict:
         instance_metadata = {
@@ -1057,15 +1025,12 @@ def revalidate_loaded_plan(ec2_client, instance_dict):
 
             if block_dev["Encrypted"]:
                 volume_metadata.update({"KmsKeyId": block_dev["KmsKeyId"]})
-
             verify_volume(ec2_client, volume_id, volume_metadata)
             print()
 
             snapshot_id = block_dev["SnapshotData"][0]["SnapshotId"]
             snapshot_metadata = {"StartTime": block_dev["SnapshotData"][0]["StartTime"]}
-
             verify_snapshot(ec2_client, snapshot_id, snapshot_metadata)
-            print()
 
 
 def main():
@@ -1118,11 +1083,12 @@ def main():
     args = parser.parse_args()
 
     if args.saveplan is not None and args.loadplan is not None:
-        print("Error: saveplan and loadplan options are mutually exclusive")
+        format_output("saveplan and loadplan options are mutually exclusive", "error")
         sys.exit(1)
 
     if args.searchtags is None and args.loadplan is None:
-        sys.exit("error: --searchtags not provided")
+        format_output("--searchtags not provided", "error")
+        sys.exit(1)
     elif args.searchtags is not None and args.loadplan is None:
         searchtags_dict = process_searchtags(args.searchtags)
 
@@ -1132,7 +1098,8 @@ def main():
     command line argument take precedence.
     """
     if not os.environ.get("AWS_PROFILE") and args.profile == "":
-        sys.exit("Error: AWS_PROFILE is not set and no profile specified.")
+        format_output("AWS_PROFILE is not set and --profile not set.", "error")
+        sys.exit(1)
     elif os.environ.get("AWS_PROFILE") and args.profile == "":
         awsprofile = os.environ.get("AWS_PROFILE")
     elif not os.environ.get("AWS_PROFILE") and args.profile != "":
@@ -1140,7 +1107,8 @@ def main():
     elif os.environ.get("AWS_PROFILE") and args.profile != "":
         awsprofile = args.profile
     else:
-        sys.exit("Unexpected error determining AWS Profile.")
+        format_output("Unexpected error determining AWS Profile.", "error")
+        sys.exit(1)
 
     """
     Run the main script sequence encapsulated in a try/except so we
@@ -1184,12 +1152,13 @@ def main():
                 manage_restore_process(ec2_client, instance_dict, searchtags_dict)
             else:
                 ec2_client.close()
-                sys.exit("\nOperation cancelled by user.\n")
+                format_output("Operation cancelled by user.", "warn")
 
             ec2_client.close()
 
     except KeyboardInterrupt:
-        sys.exit("\nOperation cancelled by user.\n")
+        print()
+        format_output("Operation cancelled by user.", "warn")
 
 
 if __name__ == "__main__":
