@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "concourse_webhook_validator"
+authors = [
+  { name="Wayne Jenkins", email="wjenkins1@companieshouse.gov.uk" },
+]
+description = "Validates resource webhook configuration in Concourse pipelines"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+  'PyYAML >= 6.0'
+]
+version = "MakefilePlaceholder"
+
+[project.scripts]
+concourse-webhook-validator="concourse_webhook_validator:main"
