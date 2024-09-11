@@ -4,7 +4,6 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ec2_tag_query"
-version = "1.0.0"
 authors = [
   { name="Wayne Jenkins", email="wjenkins1@companieshouse.gov.uk" },
 ]
@@ -20,6 +19,7 @@ dependencies = [
   'botocore == 1.27.86',
   'boto3 == 1.24.86',
 ]
+version = "MakefilePlaceholder"
 
 [project.scripts]
 ec2-tag-query="ec2_tag_query:main"

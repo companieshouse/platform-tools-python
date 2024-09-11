@@ -1,5 +1,10 @@
 artifact_name       := ebs_recover_and_replace
-version             := $(shell grep "version" pyproject.toml | awk '{print $3}' | cut -d\" -f2)
+
+ifdef VERSION
+version := $(VERSION)
+else
+$(error VERSION is not set)
+endif
 
 ifdef PYTHON_BIN
 python_bin := $(PYTHON_BIN)
@@ -17,8 +22,9 @@ clean:
 
 .PHONY: build
 build:
+	sed -i '' -e "s/^version\ =\ .*/version\ =\ \"$(version)\"/" pyproject.toml
 	$(python_bin) -m build
-	cp ./dist/$(artifact_name)-$(version).tar.gz ./$(artifact_name)-$(version).tar.gz
+	cp ./dist/$(artifact_name)-$(version)* ./
 
 .PHONY: dist
 dist: clean build

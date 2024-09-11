@@ -1,5 +1,10 @@
 artifact_name       := ec2_tag_query
-version             := $(shell grep "version" pyproject.toml | awk '{print $3}' | cut -d\" -f2)
+
+ifdef VERSION
+version := $(VERSION)
+else
+$(error VERSION is not set)
+endif
 
 ifdef PYTHON_BIN
 python_bin := $(PYTHON_BIN)
@@ -12,13 +17,14 @@ all: build
 
 .PHONY: clean
 clean:
-	rm -f ./*.tar.gz
-	rm -rf ./dist/ ./src/*.egg-info/
+        rm -f ./*.tar.gz
+        rm -rf ./dist/ ./src/*.egg-info/
 
 .PHONY: build
 build:
-	$(python_bin) -m build
-	cp ./dist/$(artifact_name)-$(version).tar.gz ./$(artifact_name)-$(version).tar.gz
+        sed -i '' -e "s/^version\ =\ .*/version\ =\ \"$(version)\"/" pyproject.toml
+        $(python_bin) -m build
+        cp ./dist/$(artifact_name)-$(version)* ./
 
 .PHONY: dist
 dist: clean build
