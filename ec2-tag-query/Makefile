@@ -3,7 +3,7 @@ artifact_name       := ec2_tag_query
 ifdef VERSION
 version := $(VERSION)
 else
-$(error VERSION is not set)
+$(error Environment variable VERSION is not set)
 endif
 
 ifdef PYTHON_BIN

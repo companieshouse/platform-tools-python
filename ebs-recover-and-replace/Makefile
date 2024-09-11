@@ -3,7 +3,7 @@ artifact_name       := ebs_recover_and_replace
 ifdef VERSION
 version := $(VERSION)
 else
-$(error VERSION is not set)
+$(error Environment variable VERSION is not set)
 endif
 
 ifdef PYTHON_BIN
