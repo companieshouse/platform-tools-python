@@ -63,7 +63,7 @@ Info: Webhooks configuration check completed successfully
 
 Validate a pipeline configuration within a specific directory structure location, based on the Concourse deployment and team name.
 ```
-$ concourse-webhook-validator --base-dir ci-pipelines/pipelines --deployment ssplatform --team team-platform concourse-ami
+$ concourse-webhook-validator --base-dir pipelines --deployment devops --team team-devops concourse-ami
 Info: Checking webhooks configuration: concourse-ami
 Info: Webhooked resources discovered: 6
 
