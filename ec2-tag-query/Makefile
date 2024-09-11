@@ -17,14 +17,14 @@ all: build
 
 .PHONY: clean
 clean:
-        rm -f ./*.tar.gz
-        rm -rf ./dist/ ./src/*.egg-info/
+	rm -f ./*.tar.gz
+	rm -rf ./dist/ ./src/*.egg-info/
 
 .PHONY: build
 build:
-        sed -i '' -e "s/^version\ =\ .*/version\ =\ \"$(version)\"/" pyproject.toml
-        $(python_bin) -m build
-        cp ./dist/$(artifact_name)-$(version)* ./
+	sed -i '' -e "s/^version\ =\ .*/version\ =\ \"$(version)\"/" pyproject.toml
+	$(python_bin) -m build
+	cp ./dist/$(artifact_name)-$(version)* ./
 
 .PHONY: dist
 dist: clean build
