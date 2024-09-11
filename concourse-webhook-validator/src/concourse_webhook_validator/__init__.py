@@ -83,7 +83,7 @@ def validate_pipeline_config(pipeline_config:object) -> int:
     return validation_error
 
 
-def parse_pipeline_resources(pipeline_config:object, webhook_dict:dict) -> dict:
+def parse_pipeline_resources(pipeline_config:object, webhook_dict:dict) -> None:
     for resource in pipeline_config['resources']:
         resource_name = resource['name']
         if 'webhook_token' in resource:
@@ -91,10 +91,8 @@ def parse_pipeline_resources(pipeline_config:object, webhook_dict:dict) -> dict:
                 resource_webhook_token = resource['webhook_token']
                 webhook_dict[resource_name] = {'rwt': resource_webhook_token}
     
-    return webhook_dict
 
-
-def parse_pipeline_jobs(pipeline_config:object, webhook_dict:dict) -> dict:
+def parse_pipeline_jobs(pipeline_config:object, webhook_dict:dict) -> None:
     for job in pipeline_config['jobs']:
         if job['name'] == 'create-webhooks':
             for create_plan in job['plan']:
@@ -115,12 +113,10 @@ def parse_pipeline_jobs(pipeline_config:object, webhook_dict:dict) -> dict:
                         }
                     )
 
-    return webhook_dict
 
-
-def validate_webhooks(resource_webhooks_dict:dict) -> dict:
-    for resource in resource_webhooks_dict:
-        resource_webhooks = resource_webhooks_dict[resource]
+def validate_webhooks(webhooks_dict:dict) -> None:
+    for resource in webhooks_dict:
+        resource_webhooks = webhooks_dict[resource]
         """
         A valid webhook token must only contain alphanumeric characters
         0: Valid
@@ -128,13 +124,13 @@ def validate_webhooks(resource_webhooks_dict:dict) -> dict:
         """
         valid_webhook = re.search(WEBHOOK_REGEX, resource_webhooks['rwt'])
         if valid_webhook:
-            resource_webhooks_dict[resource].update(
+            webhooks_dict[resource].update(
                 {
                     'rwv': 0
                 }
             )
         else:
-            resource_webhooks_dict[resource].update(
+            webhooks_dict[resource].update(
                 {
                     'rwv': 1
                 }
@@ -149,19 +145,19 @@ def validate_webhooks(resource_webhooks_dict:dict) -> dict:
         """
         if 'cwt' in resource_webhooks:
             if resource_webhooks['cwt'] == resource_webhooks['rwt']:
-                resource_webhooks_dict[resource].update(
+                webhooks_dict[resource].update(
                     {
                         'cwv': 0
                     }
                 )
             else:
-                resource_webhooks_dict[resource].update(
+                webhooks_dict[resource].update(
                     {
                         'cwv': 1
                     }
                 )
         else:
-            resource_webhooks_dict[resource].update(
+            webhooks_dict[resource].update(
                 {
                     'cwv': 2
                 }
@@ -169,25 +165,23 @@ def validate_webhooks(resource_webhooks_dict:dict) -> dict:
 
         if 'dwt' in resource_webhooks:
             if resource_webhooks['dwt'] == resource_webhooks['rwt']:
-                resource_webhooks_dict[resource].update(
+                webhooks_dict[resource].update(
                     {
                         'dwv': 0
                     }
                 )
             else:
-                resource_webhooks_dict[resource].update(
+                webhooks_dict[resource].update(
                     {
                         'dwv': 1
                     }
                 )
         else:
-            resource_webhooks_dict[resource].update(
+            webhooks_dict[resource].update(
                 {
                     'dwv': 2
                 }
             )
-        
-    return resource_webhooks_dict
 
 
 def display_results(webhooks_dict:dict) -> int:
@@ -327,10 +321,10 @@ def main() -> None:
     )
     pipeline_config = load_pipeline_config(pipeline_file_path)
     if validate_pipeline_config(pipeline_config) == 0:
-        webhooks_dict = parse_pipeline_resources(pipeline_config, webhooks_dict)
+        parse_pipeline_resources(pipeline_config, webhooks_dict)
         if len(webhooks_dict) > 0:
-            webhooks_dict = parse_pipeline_jobs(pipeline_config, webhooks_dict)
-            webhooks_dict = validate_webhooks(webhooks_dict)
+            parse_pipeline_jobs(pipeline_config, webhooks_dict)
+            validate_webhooks(webhooks_dict)
             if display_results(webhooks_dict) == 0:
                 print()
                 format_output(
