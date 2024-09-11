@@ -87,8 +87,9 @@ def parse_pipeline_resources(pipeline_config:object, webhook_dict:dict) -> dict:
     for resource in pipeline_config['resources']:
         resource_name = resource['name']
         if 'webhook_token' in resource:
-            resource_webhook_token = resource['webhook_token']
-            webhook_dict[resource_name] = {'rwt': resource_webhook_token}
+            if resource['webhook_token'] is not None:
+                resource_webhook_token = resource['webhook_token']
+                webhook_dict[resource_name] = {'rwt': resource_webhook_token}
     
     return webhook_dict
 
@@ -327,19 +328,25 @@ def main() -> None:
     pipeline_config = load_pipeline_config(pipeline_file_path)
     if validate_pipeline_config(pipeline_config) == 0:
         webhooks_dict = parse_pipeline_resources(pipeline_config, webhooks_dict)
-        webhooks_dict = parse_pipeline_jobs(pipeline_config, webhooks_dict)
-        webhooks_dict = validate_webhooks(webhooks_dict)
-        if display_results(webhooks_dict) == 0:
-            print()
-            format_output(
-                "Webhooks configuration check completed successfully"
-            )
+        if len(webhooks_dict) > 0:
+            webhooks_dict = parse_pipeline_jobs(pipeline_config, webhooks_dict)
+            webhooks_dict = validate_webhooks(webhooks_dict)
+            if display_results(webhooks_dict) == 0:
+                print()
+                format_output(
+                    "Webhooks configuration check completed successfully"
+                )
+            else:
+                format_output(
+                    "Validation failures were encountered",
+                    "error"
+                )
+                sys.exit(1)
+
         else:
             format_output(
-                "Validation failures were encountered",
-                "error"
+                "No webhooked resources found"
             )
-            sys.exit(1)
 
     else:
         format_output(
