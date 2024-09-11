@@ -2,7 +2,7 @@
 
 Parses a provided Concourse pipeline configuration and discovers resources configured with webhooks. These resources are then compared against the defined `create-webhooks` and `delete-webhooks` jobs to validate the webhook configuration.
 
-The scripts exists with a return code of `0` on a successful validation. The scripts exists with a return code of `1` if any validation errors are found.
+The scripts exits with a return code of `0` on a successful validation. The scripts exits with a return code of `1` if any validation errors are found.
 
 ## Building this project
 
