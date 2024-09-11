@@ -3,11 +3,11 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ec2_tag_query"
+name = "concourse_webhook_validator"
 authors = [
   { name="Wayne Jenkins", email="wjenkins1@companieshouse.gov.uk" },
 ]
-description = "Lookup details on EC2 instances by tag name and value"
+description = "Validates resource webhook configuration in Concourse pipelines"
 readme = "README.md"
 requires-python = ">=3.9"
 classifiers = [
@@ -16,10 +16,9 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-  'botocore == 1.27.86',
-  'boto3 == 1.24.86',
+  'PyYAML >= 6.0'
 ]
 version = "MakefilePlaceholder"
 
 [project.scripts]
-ec2-tag-query="ec2_tag_query:main"
+concourse-webhook-validator="concourse_webhook_validator:main"

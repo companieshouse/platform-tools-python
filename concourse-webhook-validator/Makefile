@@ -1,4 +1,4 @@
-artifact_name       := ebs_recover_and_replace
+artifact_name       := concourse_webhook_validator
 
 ifdef VERSION
 version := $(VERSION)
