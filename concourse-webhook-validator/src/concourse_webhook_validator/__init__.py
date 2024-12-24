@@ -35,6 +35,26 @@ def format_output(message="", style="info") -> None:
     print(prefix + message)
 
 
+def read_pipelines_list_from_file(pipeline_file) -> list:
+    try:
+        with open(pipeline_file, 'r') as file:
+            pipelines_list = [line.rstrip() for line in file]
+    except OSError as err:
+        format_output(
+            f"Unable to open/read the provided file: {colours.bold}{pipeline_file}{colours.end}",
+            "error"
+        )
+        sys.exit(1)
+    except:
+        format_output(
+            f"Unexpected error opening file: {colours.bold}{pipeline_file}{colours.end}",
+            "error"
+        )
+        sys.exit(1)
+
+    return pipelines_list
+
+
 def load_pipeline_config(pipeline_config_file_path:str) -> object:
     """
     The file must exist before we load it. Once loaded the
@@ -276,13 +296,40 @@ def display_results(webhooks_dict:dict) -> int:
     
     return resource_validation_failed
 
+
+def print_validation_summary(validation_failure_list) -> None:
+    print()
+    print("-" * 80
+          + "\nValidation results summary\n"
+          + "-" * 80
+    )
+    if len(validation_failure_list) > 0:
+        format_output(
+            "The following pipelines had validation failures",
+            "error"
+        )
+        for failed_pipeline in validation_failure_list:
+            format_output(
+                f"{colours.bold}{failed_pipeline}{colours.end}",
+                "error"
+            )
+        sys.exit(1)
+    else:
+        format_output(
+            "All pipelines have been successfully validated",
+        )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Program arguments and options")
     parser.add_argument('pipeline',
                         default=None,
-                        help="The name of the pipeline to load",
+                        help="The name of the pipeline configuration to load",
                         nargs=1
                         )
+    parser.add_argument('--list',
+                        action='store_true',
+                        help="Specifies that the provided input is a file containing a list of pipeline configurations, one per line")
     parser.add_argument('--base-dir',
                         default='',
                         help="The base directory in which the pipeline configurations are stored",
@@ -311,43 +358,52 @@ def main() -> None:
         pipeline_team = ''
     else:
         pipeline_team = args.team[0]
-    
-    pipeline_file = args.pipeline[0]
-    pipeline_file_path = os.path.join(pipeline_base_dir, pipeline_deployment, pipeline_team, pipeline_file)
 
-    webhooks_dict = {}
-    format_output(
-        f"Checking webhooks configuration: {colours.bold}{pipeline_file}{colours.end}"
-    )
-    pipeline_config = load_pipeline_config(pipeline_file_path)
-    if validate_pipeline_config(pipeline_config) == 0:
-        parse_pipeline_resources(pipeline_config, webhooks_dict)
-        if len(webhooks_dict) > 0:
-            parse_pipeline_jobs(pipeline_config, webhooks_dict)
-            validate_webhooks(webhooks_dict)
-            if display_results(webhooks_dict) == 0:
-                print()
-                format_output(
-                    "Webhooks configuration check completed successfully"
-                )
+    if args.list:
+        pipelines_list = read_pipelines_list_from_file(args.pipeline[0])
+    else:
+        pipelines_list = [args.pipeline[0]]
+
+    validation_failure_list = []
+    for pipeline in pipelines_list:
+        pipeline_file_path = os.path.join(pipeline_base_dir, pipeline_deployment, pipeline_team, pipeline)
+        pipeline_name_element_list = pipeline_file_path.rsplit('/', 1)
+        pipeline_name = pipeline_name_element_list[len(pipeline_name_element_list) - 1]
+
+        webhooks_dict = {}
+        print()
+        format_output(
+            f"Checking webhooks configuration: {colours.bold}{pipeline_name}{colours.end}"
+        )
+        pipeline_config = load_pipeline_config(pipeline_file_path)
+        if validate_pipeline_config(pipeline_config) == 0:
+            parse_pipeline_resources(pipeline_config, webhooks_dict)
+            if len(webhooks_dict) > 0:
+                parse_pipeline_jobs(pipeline_config, webhooks_dict)
+                validate_webhooks(webhooks_dict)
+                if display_results(webhooks_dict) == 0:
+                    print()
+                    format_output(
+                        "Webhooks configuration check completed successfully"
+                    )
+                else:
+                    validation_failure_list.append(pipeline_name)
+                    format_output(
+                        "Webhooks validation failures were encountered",
+                        "warn"
+                    )
             else:
                 format_output(
-                    "Validation failures were encountered",
-                    "error"
+                    "No webhooked resources found"
                 )
-                sys.exit(1)
-
         else:
+            validation_failure_list.append(pipeline_name)
             format_output(
-                "No webhooked resources found"
+                "Pipeline does not appear to be a valid configuration",
+                "warn"
             )
 
-    else:
-        format_output(
-            f"Pipeline does not appear to be a valid configuration: {colours.bold}{pipeline_file}{colours.end}",
-            "error"
-        )
-        sys.exit(1)
+    print_validation_summary(validation_failure_list)
 
 
 if __name__ == "__main__":
