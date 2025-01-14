@@ -173,11 +173,6 @@ def display_results(webhooks_dict: dict) -> int:
         if len(resource) > resource_name_length:
             resource_name_length = len(resource)
 
-    resource_name_text = "Resource name"
-    resource_token_valid_text = "Token valid"
-    create_token_matches_text = "Create matches"
-    delete_token_matches_text = "Delete matches"
-
     webhooks_table = PrettyTable()
     webhooks_table.field_names = ["Resource name", "Token valid", "Create matches", "Delete matches"]
 
