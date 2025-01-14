@@ -178,10 +178,6 @@ def display_results(webhooks_dict: dict) -> int:
     create_token_matches_text = "Create matches"
     delete_token_matches_text = "Delete matches"
 
-    """
-    Table header includes some padding to allow the text to be properly centered
-    without being cramped agaist the '|' separators.
-    """
     webhooks_table = PrettyTable()
     webhooks_table.field_names = ["Resource name", "Token valid", "Create matches", "Delete matches"]
 
