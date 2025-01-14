@@ -4,6 +4,8 @@ import re
 import sys
 import yaml
 
+from prettytable import PrettyTable
+
 """
 Defaults
 """
@@ -180,16 +182,8 @@ def display_results(webhooks_dict: dict) -> int:
     Table header includes some padding to allow the text to be properly centered
     without being cramped agaist the '|' separators.
     """
-    print(
-        f"{resource_name_text.ljust(int(resource_name_length + 1))}|"
-        + f"{resource_token_valid_text.center(int(len(resource_token_valid_text) + 2))}|"
-        + f"{create_token_matches_text.center(int(len(create_token_matches_text) + 2))}|"
-        + f"{delete_token_matches_text.center(int(len(delete_token_matches_text) + 2))}\n"
-        + f"{'-' * int(resource_name_length + 1)}|"
-        + f"{'-' * int(len(resource_token_valid_text) + 2)}|"
-        + f"{'-' * int(len(create_token_matches_text) + 2)}|"
-        + f"{'-' * int(len(delete_token_matches_text) + 2)}"
-    )
+    webhooks_table = PrettyTable()
+    webhooks_table.field_names = ["Resource name", "Token valid", "Create matches", "Delete matches"]
 
     """
     Loop through and build the tabular output and track whether any
@@ -246,12 +240,9 @@ def display_results(webhooks_dict: dict) -> int:
                 f"'{resource}' missing 'delete-webhooks' job or webhook token parameter not set"
             )
 
-        print(
-            f"{resource.ljust(int(resource_name_length) + 1)}|"
-            + f" {resource_webhook_valid.center(int(len(resource_token_valid_text)))}|"
-            + f" {create_webhook_valid.center(int(len(create_token_matches_text)))}|"
-            + f"{delete_webhook_valid.center(int(len(delete_token_matches_text)))}"
-        )
+        webhooks_table.add_row([resource, resource_webhook_valid, create_webhook_valid, delete_webhook_valid])
+
+    print(webhooks_table)
 
     if resource_validation_failed == 1:
         print()
