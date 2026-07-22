@@ -302,7 +302,6 @@ def process_args() -> dict[str, str]:
         'repo_branch': args.repo_branch,
         'task_path': args.task_path
     }
-    print(args_dict)
     return args_dict
 
 
