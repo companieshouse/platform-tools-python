@@ -1,6 +1,6 @@
-# concourse-webhook-validator
+# concourse-resources-validator
 
-Parses a provided Concourse pipeline configuration and discovers resources configured with webhooks. These resources are then compared against the defined `create-webhooks` and `delete-webhooks` jobs to validate the webhook configuration.
+Parses a provided list of Concourse pipeline configuratio files and discovers `concourse-resources` resource configuration and job task files that are then validated against a set of known-good defaults.
 
 The scripts exits with a return code of `0` on a successful validation. The scripts exits with a return code of `1` if any validation errors are found.
 
@@ -21,19 +21,23 @@ The Python build output will be placed in a `./dist` directory and will comprise
 ## Command Line Options
 
 ```
-usage: concourse-webhook-validator [-h] [--base-dir BASE_DIR] [--deployment DEPLOYMENT] [--team TEAM] pipeline
+usage: concourse-resources-validator.py [-h] [--base-dir BASE_DIR] [--repo-uri REPO_URI] [--repo-branch REPO_BRANCH]
+                                        [--task-path TASK_PATH]
+                                        pipelines_file
 
 Program arguments and options
 
 positional arguments:
-  pipeline              The name of the pipeline to load
+  pipelines_file        A file containing a list of pipelines to process
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
-  --base-dir BASE_DIR   The base directory in which the pipeline configurations are stored
-  --deployment DEPLOYMENT
-                        The name of the Concourse deployment
-  --team TEAM           The team name that the pipeline is configured for
+  --base-dir BASE_DIR   The base directory in which the pipeline configurations are stored (default: .)
+  --repo-uri REPO_URI   The Github URI to use during validation (default: git@github.com:companieshouse/ci-concourse-resources.git)
+  --repo-branch REPO_BRANCH
+                        The repository branch to use during validation (default: shared-services)
+  --task-path TASK_PATH
+                        The task file path to use during validation (default: concourse-resources/tasks)
 ```
 
 ## Outputs
@@ -43,38 +47,27 @@ The script outputs to stdout in column-formatted plain text. Script output messa
 
 ## Examples
 
-Validate the webhooks of a pipeline configuration in the current working directory
+Validate a list of pipelines in a file
 ```
-$ concourse-webhook-validator concourse-ami
-Info: Checking webhooks configuration: concourse-ami
-Info: Webhooked resources discovered: 6
+$ concourse-resources-validator /tmp/list-of-pipelines
+Info: Starting concourse-resources configuration validation
 
-Resource name                        | Token valid | Create matches | Delete matches
--------------------------------------|-------------|----------------|----------------
-concourse-6-source-code              |      ✅     |       ✅       |      ✅
-concourse-6-source-code-pull-request |      ✅     |       ✅       |      ✅
-concourse-6-release-tag              |      ✅     |       ✅       |      ✅
-concourse-7-source-code              |      ✅     |       ✅       |      ✅
-concourse-7-source-code-pull-request |      ✅     |       ✅       |      ✅
-concourse-7-release-tag              |      ✅     |       ✅       |      ✅
+Info: Repository URI:    [git@github.com:companieshouse/ci-concourse-resources.git]
+Info: Repository branch: [shared-services]
+Info: Task file path:    [concourse-resources/tasks/*]
 
-Info: Webhooks configuration check completed successfully
-```
+Info: Validating pipeline: [my-service-pipeline]
+Info: Validating pipeline: [other-service-pipeline]
 
-Validate a pipeline configuration within a specific directory structure location, based on the Concourse deployment and team name.
-```
-$ concourse-webhook-validator --base-dir pipelines --deployment devops --team team-devops concourse-ami
-Info: Checking webhooks configuration: concourse-ami
-Info: Webhooked resources discovered: 6
++------------------------+--------+-----------+-------+
+|           Pipeline     | Config | Resources | Tasks |
++------------------------+--------+-----------+-------+
+|  my-service-pipeline   |   ✅   |     ✅    |   ✅  |
+| other-service-pipeline |   ✅   |     ✅    |   ❌  |
++------------------------+--------+-----------+-------+
 
-Resource name                        | Token valid | Create matches | Delete matches
--------------------------------------|-------------|----------------|----------------
-concourse-6-source-code              |      ✅     |       ✅       |      ✅
-concourse-6-source-code-pull-request |      ✅     |       ✅       |      ✅
-concourse-6-release-tag              |      ✅     |       ✅       |      ✅
-concourse-7-source-code              |      ✅     |       ✅       |      ✅
-concourse-7-source-code-pull-request |      ✅     |       ✅       |      ✅
-concourse-7-release-tag              |      ✅     |       ✅       |      ✅
 
-Info: Webhooks configuration check completed successfully
+Error: other-service-pipeline: Incorrect task file path: [ansible-code/tasks/build.yml]
+
+Error: Validation errors encountered
 ```
