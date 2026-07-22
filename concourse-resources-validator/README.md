@@ -2,7 +2,7 @@
 
 Parses a provided list of Concourse pipeline configuratio files and discovers `concourse-resources` resource configuration and job task files that are then validated against a set of known-good defaults.
 
-The scripts exits with a return code of `0` on a successful validation. The scripts exits with a return code of `1` if any validation errors are found.
+The script exits with a return code of `0` on a successful validation. The script exits with a return code of `1` if any validation errors are found. Non-fatal warnings will emit a log message and exit with a return code of `0`.
 
 ## Building this project
 
