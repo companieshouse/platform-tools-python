@@ -2,3 +2,4 @@
 **/src/*.egg-info
 **/*.tar.gz
 **/*.whl
+**/.venv
