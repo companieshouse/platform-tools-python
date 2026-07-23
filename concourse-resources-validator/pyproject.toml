@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "concourse_resources_validator"
+authors = [
+  { name="Wayne Jenkins", email="wjenkins1@companieshouse.gov.uk" },
+]
+description = "Validates concourse-resources use within Concourse pipelines"
+license = "MIT"
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+  'prettytable == 3.18.0',
+  'PyYAML == 6.0.3'
+]
+version = "MakefilePlaceholder"
+
+[project.scripts]
+concourse-resources-validator = "concourse_resources_validator:main"
