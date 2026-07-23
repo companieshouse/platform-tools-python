@@ -124,25 +124,23 @@ def validate_concourse_resources_resource(pipeline_config: dict, repo_uri: str, 
     resources_error = False
     concourse_resources_used = False
     resources_check_result = {}
+    resources_check_result['message'] = []
     for resource in pipeline_config['resources']:
         if resource['name'] == 'concourse-resources' and resource['type'] == 'git':
             concourse_resources_used = True
             if resource['source']['uri'] != repo_uri:
                 resources_check_result['status'] = "failed"
-                resources_check_result['message'] = f"Incorrect git repository [{resource['source']['uri']}]"
+                resources_check_result['message'].append(f"Incorrect git repository [{resource['source']['uri']}]")
                 resources_error = True
-                break
 
             if resource['source']['branch'] != repo_branch:
                 resources_check_result['status'] = "failed"
-                resources_check_result['message'] = f"Incorrect git branch [{resource['source']['branch']}]"
+                resources_check_result['message'].append(f"Incorrect git branch [{resource['source']['branch']}]")
                 resources_error = True
-                break
-                
+
     if not concourse_resources_used:
         resources_check_result['status'] = "skipped"
         resources_check_result['message'] = "Did not find a resources entry for concourse-resources"
-
 
     if concourse_resources_used and not resources_error:
         resources_check_result['status'] = "passed"
@@ -177,9 +175,7 @@ def validate_concourse_resources_tasks(pipeline_config: dict, task_path: str) ->
     return tasks_check_result
 
 
-def display_report(pipeline_validity_dict: dict) -> dict:
-    pipeline_errors_dict = {}
-    pipeline_warnings_dict = {}
+def display_report_table(pipeline_validity_dict: dict) -> None:
     results_icon_dict = {
         "failed": "❌",
         "passed": "✅",
@@ -193,71 +189,71 @@ def display_report(pipeline_validity_dict: dict) -> dict:
     for pipeline in sorted(pipeline_validity_dict):
         resources_status = pipeline_validity_dict[pipeline]['resources_status']
         resources_icon = results_icon_dict[resources_status]
-        resources_message = pipeline_validity_dict[pipeline]['resources_message']
-        if resources_status == 'failed':
-            pipeline_errors_dict[pipeline] = resources_message
-        elif resources_status == 'skipped':
-            pipeline_warnings_dict[pipeline] = resources_message
 
         tasks_status = pipeline_validity_dict[pipeline]['tasks_status']
         tasks_icon = results_icon_dict[tasks_status]
-        tasks_message = pipeline_validity_dict[pipeline]['tasks_message']
-        if tasks_status == 'failed':
-            pipeline_errors_dict[pipeline] = tasks_message
-        elif tasks_status == 'skipped':
-            pipeline_warnings_dict[pipeline] = tasks_message
 
         config_status = pipeline_validity_dict[pipeline]['config_status']
         config_icon = results_icon_dict[config_status]
-        config_message = pipeline_validity_dict[pipeline]['config_message']
-        if config_status == 'failed':
-            pipeline_errors_dict[pipeline] = config_message
-        elif config_status == 'skipped':
-            pipeline_warnings_dict[pipeline] = config_message
 
         report_table.add_row([pipeline, f"{config_icon}", f"{resources_icon}", f"{tasks_icon}"])
 
     print()
     print(report_table)
 
-    output_dict = {
-        "warnings": pipeline_warnings_dict,
-        "errors": pipeline_errors_dict
-    }
 
-    return output_dict
-
-
-def output_messages_and_exit(output_dict: dict) -> None:
-    if 'warnings' in output_dict:
-        print()
-        for pipeline in output_dict['warnings']:
+def output_messages_and_exit(pipeline_validity_dict: dict) -> None:
+    print()
+    validation_errors = False
+    for pipeline in sorted(pipeline_validity_dict):
+        if pipeline_validity_dict[pipeline]['config_status'] == 'skipped':
             format_output(
-                f"{pipeline}: {output_dict['warnings'][pipeline]}",
+                f"{pipeline}: {pipeline_validity_dict[pipeline]['config_message']}",
+                "warn"
+            )
+        elif pipeline_validity_dict[pipeline]['resources_status'] == 'skipped':
+            format_output(
+                f"{pipeline}: {pipeline_validity_dict[pipeline]['resources_message']}",
+                "warn"
+            )
+        elif pipeline_validity_dict[pipeline]['tasks_status'] == 'skipped':
+            format_output(
+                f"{pipeline}: {pipeline_validity_dict[pipeline]['tasks_message']}",
                 "warn"
             )
 
-    if 'errors' in output_dict:
-        print()
-        for pipeline in output_dict['errors']:
+        if pipeline_validity_dict[pipeline]['config_status'] == 'failed':
+            validation_errors = True
             format_output(
-                f"{pipeline}: {output_dict['errors'][pipeline]}",
+                f"{pipeline}: {pipeline_validity_dict[pipeline]['config_message']}",
+                "error"
+            )
+        elif pipeline_validity_dict[pipeline]['resources_status'] == 'failed':
+            validation_errors = True
+            for message in pipeline_validity_dict[pipeline]['resources_message']:
+                format_output(
+                    f"{pipeline}: {message}",
+                    "error"
+                )
+        elif pipeline_validity_dict[pipeline]['tasks_status'] == 'failed':
+            validation_errors = True
+            format_output(
+                f"{pipeline}: {pipeline_validity_dict[pipeline]['tasks_message']}",
                 "error"
             )
 
+    if validation_errors:
         print()
         format_output(
             "Validation errors encountered",
             "error"
         )
         sys.exit(1)
-
-    print()
-    format_output(
-        "Validation completed successfully",
-        "info"
-    )
-    sys.exit()
+    else:
+        format_output(
+            "Validation completed successfully"
+        )
+        sys.exit(0)
 
 
 def load_pipelines_file(args_dict: dict) -> list[str]:
@@ -310,8 +306,8 @@ def main() -> None:
     pipelines_list = load_pipelines_file(args_dict)
     pipeline_validity_dict = validate_pipelines(args_dict, pipelines_list)
 
-    output_dict = display_report(pipeline_validity_dict)
-    output_messages_and_exit(output_dict)
+    display_report_table(pipeline_validity_dict)
+    output_messages_and_exit(pipeline_validity_dict)
 
 
 """
