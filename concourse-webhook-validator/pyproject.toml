@@ -8,6 +8,7 @@ authors = [
   { name="Wayne Jenkins", email="wjenkins1@companieshouse.gov.uk" },
 ]
 description = "Validates resource webhook configuration in Concourse pipelines"
+license = "MIT"
 readme = "README.md"
 requires-python = ">=3.9"
 classifiers = [
@@ -16,8 +17,8 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-  'prettytable == 3.12.0',
-  'PyYAML >= 6.0'
+  'prettytable == 3.18.0',
+  'PyYAML == 6.0.3'
 ]
 version = "MakefilePlaceholder"
 
