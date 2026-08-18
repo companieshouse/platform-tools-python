@@ -155,14 +155,15 @@ def validate_concourse_resources_tasks(pipeline_config: dict, task_path: str) ->
     tasks_using_files = False
     for job in pipeline_config['jobs']:
         for job_plan in job['plan']:
-            if 'file' in job_plan:
-                tasks_using_files = True
-                task_file_path = str(job_plan['file'])
-                if not task_file_path.startswith(task_path):
-                    task_error = True
-                    tasks_check_result['status'] = "failed"
-                    tasks_check_result['message'] = f"Incorrect task file path: [{task_file_path}]"
-                    break
+            if 'task' in job_plan:
+                if 'file' in job_plan:
+                    tasks_using_files = True
+                    task_file_path = str(job_plan['file'])
+                    if not task_file_path.startswith(task_path):
+                        task_error = True
+                        tasks_check_result['status'] = "failed"
+                        tasks_check_result['message'] = f"Incorrect task file path: [{task_file_path}]"
+                        break
 
     if not tasks_using_files:
         tasks_check_result['status'] = "skipped"
